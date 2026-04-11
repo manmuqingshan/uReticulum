@@ -52,6 +52,11 @@ namespace RNS {
         void load_public_key(const Bytes& pub_bytes);
         void update_hashes();
 
+        /* File-backed persistence (Phase 6). Requires a FileSystemImpl
+         * registered via FileSystem::set_impl. */
+        bool to_file(const char* path) const;
+        static Identity from_file(const char* path);
+
         const Bytes& get_salt()    const { return _object->_hash; }
         Bytes        get_context() const { return Bytes{Bytes::NONE}; }
 

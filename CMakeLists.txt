@@ -43,6 +43,8 @@ add_library(ureticulum STATIC
     src/transport.cpp
     src/link.cpp
     src/reticulum.cpp
+    src/filesystem.cpp
+    src/filesystems/posix.cpp
     src/interfaces/loopback.cpp
     third_party/tlsf/tlsf.c
 )
@@ -111,6 +113,7 @@ if(URETICULUM_BUILD_TESTS AND URETICULUM_PORT STREQUAL "posix")
         test/test_loopback.cpp
         test/test_transport.cpp
         test/test_link.cpp
+        test/test_filesystem.cpp
     )
     target_include_directories(ureticulum_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/doctest

@@ -4,6 +4,7 @@
 
 #include "ureticulum/cryptography/hkdf.h"
 #include "ureticulum/cryptography/token.h"
+#include "ureticulum/filesystem.h"
 #include "ureticulum/os.h"
 
 namespace RNS {
@@ -65,6 +66,21 @@ void Identity::load_public_key(const Bytes& pub_bytes) {
 void Identity::update_hashes() {
     _object->_hash    = truncated_hash(get_public_key());
     _object->_hexhash = _object->_hash.toHex();
+}
+
+bool Identity::to_file(const char* path) const {
+    if (!FileSystem::available()) return false;
+    Bytes prv = get_private_key();
+    return FileSystem::write_file(path, prv) == prv.size();
+}
+
+Identity Identity::from_file(const char* path) {
+    if (!FileSystem::available()) return Identity{Type::NONE};
+    Bytes prv;
+    if (FileSystem::read_file(path, prv) == 0) return Identity{Type::NONE};
+    Identity id(false);
+    if (!id.load_private_key(prv)) return Identity{Type::NONE};
+    return id;
 }
 
 void Identity::remember(const Bytes& packet_hash, const Bytes& destination_hash,
