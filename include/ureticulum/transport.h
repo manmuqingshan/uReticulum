@@ -12,25 +12,9 @@
 namespace RNS {
 
     class Identity;
+    class Link;
     class Packet;
 
-    /* Phase 4 Transport.
-     *
-     * Implements:
-     *   - Interface registration
-     *   - Local destination registration
-     *   - Announce broadcast across interfaces
-     *   - Announce validation (Ed25519 signature + destination-hash check)
-     *   - Path table updates from received announces
-     *   - inbound() routing: locally-addressed → destination callback,
-     *     remote-addressed with known next hop → forward, otherwise drop
-     *
-     * Deferred to later phases:
-     *   - Link request handling, link state, link MTU discovery (Phase 5)
-     *   - Path requests (PATH_REQUEST), path expiry, rate limiting (Phase 7)
-     *   - Resource caching, packet caches, reverse path table
-     *   - IFAC, tunnels, probes, persistence
-     */
     class Transport {
     public:
         struct PathEntry {
@@ -43,6 +27,8 @@ namespace RNS {
         using AnnounceCallback = std::function<void(const Bytes& destination_hash,
                                                     const Identity& announced_identity,
                                                     const Bytes& app_data)>;
+        using LinkRequestCallback = std::function<std::shared_ptr<Link>(
+            const Destination& destination, const Bytes& request_data, const Packet& packet)>;
 
         static void register_interface(std::shared_ptr<InterfaceImpl> iface);
         static void deregister_interface(const std::shared_ptr<InterfaceImpl>& iface);
@@ -52,30 +38,36 @@ namespace RNS {
         static void        deregister_destination(const Destination& dest);
         static Destination find_destination_from_hash(const Bytes& hash);
 
-        /* Send raw bytes on every registered interface, optionally skipping one. */
-        static void broadcast(const Bytes& raw, const std::shared_ptr<InterfaceImpl>& skip = nullptr);
+        /* Link tracking. Phase 5 dispatches inbound frames addressed to a
+         * link's hash (LRPROOF and DATA-over-Link) to the registered link. */
+        static void                  register_link(const std::shared_ptr<Link>& link);
+        static void                  deregister_link(const std::shared_ptr<Link>& link);
+        static std::shared_ptr<Link> find_link(const Bytes& link_hash);
 
-        /* Called by Interface::handle_incoming on every received frame. */
+        /* Server-side hook: invoked when a LINKREQUEST arrives addressed to a
+         * locally-registered destination. The handler should call
+         * Link::validate_request and return the resulting link. */
+        static void set_link_request_handler(LinkRequestCallback cb);
+
+        static void broadcast(const Bytes& raw, const std::shared_ptr<InterfaceImpl>& skip = nullptr);
         static void inbound(const Bytes& raw, const Interface& iface);
 
-        /* Path table query. */
         static bool          has_path(const Bytes& destination_hash);
         static uint8_t       hops_to(const Bytes& destination_hash);
         static const PathEntry* lookup_path(const Bytes& destination_hash);
         static void          clear_paths();
 
-        /* Optional global announce hook (used by tests and AnnounceHandlers). */
         static void on_announce(AnnounceCallback cb);
-
-        /* Reset everything. Used by tests. */
         static void reset();
 
     private:
         static std::vector<std::shared_ptr<InterfaceImpl>>      _interfaces;
         static std::map<Bytes, Destination>                     _destinations;
         static std::map<Bytes, PathEntry>                       _path_table;
+        static std::map<Bytes, std::shared_ptr<Link>>           _links;
         static std::set<Bytes>                                  _seen_announces;
         static AnnounceCallback                                 _on_announce;
+        static LinkRequestCallback                              _on_link_request;
 
         static bool process_announce(const Packet& packet, const Interface& iface);
     };

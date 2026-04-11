@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "ureticulum/identity.h"
+#include "ureticulum/link.h"
 #include "ureticulum/log.h"
 #include "ureticulum/os.h"
 #include "ureticulum/packet.h"
@@ -12,8 +13,10 @@ namespace RNS {
 std::vector<std::shared_ptr<InterfaceImpl>> Transport::_interfaces;
 std::map<Bytes, Destination>                Transport::_destinations;
 std::map<Bytes, Transport::PathEntry>       Transport::_path_table;
+std::map<Bytes, std::shared_ptr<Link>>      Transport::_links;
 std::set<Bytes>                             Transport::_seen_announces;
 Transport::AnnounceCallback                 Transport::_on_announce = nullptr;
+Transport::LinkRequestCallback              Transport::_on_link_request = nullptr;
 
 void Transport::register_interface(std::shared_ptr<InterfaceImpl> iface) {
     _interfaces.push_back(std::move(iface));
@@ -39,6 +42,23 @@ void Transport::deregister_destination(const Destination& dest) {
 Destination Transport::find_destination_from_hash(const Bytes& hash) {
     auto it = _destinations.find(hash);
     return it == _destinations.end() ? Destination{Type::NONE} : it->second;
+}
+
+void Transport::register_link(const std::shared_ptr<Link>& link) {
+    if (link) _links.insert_or_assign(link->hash(), link);
+}
+
+void Transport::deregister_link(const std::shared_ptr<Link>& link) {
+    if (link) _links.erase(link->hash());
+}
+
+std::shared_ptr<Link> Transport::find_link(const Bytes& link_hash) {
+    auto it = _links.find(link_hash);
+    return it == _links.end() ? nullptr : it->second;
+}
+
+void Transport::set_link_request_handler(LinkRequestCallback cb) {
+    _on_link_request = std::move(cb);
 }
 
 void Transport::broadcast(const Bytes& raw, const std::shared_ptr<InterfaceImpl>& skip) {
@@ -74,8 +94,10 @@ void Transport::reset() {
     _interfaces.clear();
     _destinations.clear();
     _path_table.clear();
+    _links.clear();
     _seen_announces.clear();
     _on_announce = nullptr;
+    _on_link_request = nullptr;
 }
 
 void Transport::inbound(const Bytes& raw, const Interface& iface) {
@@ -87,13 +109,35 @@ void Transport::inbound(const Bytes& raw, const Interface& iface) {
         return;
     }
 
+    if (pkt.packet_type() == Type::Packet::LINKREQUEST) {
+        auto dit = _destinations.find(pkt.destination_hash());
+        if (dit == _destinations.end() || !_on_link_request) return;
+        auto link = _on_link_request(dit->second, pkt.data(), pkt);
+        if (link) register_link(link);
+        return;
+    }
+
+    if (pkt.packet_type() == Type::Packet::PROOF && pkt.context() == Type::Packet::LRPROOF) {
+        auto link = find_link(pkt.destination_hash());
+        if (link) link->on_proof(pkt);
+        return;
+    }
+
     if (pkt.packet_type() == Type::Packet::DATA) {
+        /* Local destination match? */
         auto it = _destinations.find(pkt.destination_hash());
         if (it != _destinations.end()) {
             Bytes plaintext = it->second.decrypt(pkt.data());
             if (!plaintext.empty()) it->second.receive(plaintext, pkt);
             return;
         }
+        /* Active link match? */
+        auto link = find_link(pkt.destination_hash());
+        if (link) {
+            link->on_inbound(pkt);
+            return;
+        }
+        /* Forward toward known next hop. */
         auto path = _path_table.find(pkt.destination_hash());
         if (path != _path_table.end() && path->second.via_interface) {
             Bytes forward = raw;
@@ -107,10 +151,6 @@ void Transport::inbound(const Bytes& raw, const Interface& iface) {
 }
 
 bool Transport::process_announce(const Packet& packet, const Interface& iface) {
-    /* Dedup by packet hash. The hash covers the announce data (including its
-     * random_hash field) so each emission is unique, but a relayed copy of
-     * the same announce hashes identically and gets dropped here. Prevents
-     * forward loops in mesh topologies. */
     if (!_seen_announces.insert(packet.get_hash()).second) return false;
 
     constexpr size_t KEY  = Type::Identity::KEYSIZE / 8;
