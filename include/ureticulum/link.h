@@ -15,16 +15,22 @@ namespace RNS {
 
     class Packet;
 
-    /* Phase 5 cut: minimal Link with handshake + symmetric data plane.
+    /* Wire format:
+     *   LINKREQUEST data : ephemeral_x25519_pub (32)
+     *                   || ephemeral_ed25519_pub (32)
+     *                   || optional advertised_mtu (3, big-endian, masked
+     *                      with Type::Link::MTU_BYTEMASK)
+     *   LRPROOF data     : signature (64)
+     *                   || responder_ephemeral_x25519_pub (32)
+     *                   || optional negotiated_mtu (3)
      *
-     * Wire format (single-MTU, no MTU discovery):
-     *   LINKREQUEST data : ephemeral_x25519_pub (32) || ephemeral_ed25519_pub (32)
-     *   LRPROOF data     : signature (64) || responder_ephemeral_x25519_pub (32)
+     * The MTU bytes are a uReticulum extension and may not match upstream
+     * Reticulum's eventual MTU-discovery format. They're appended-only, so
+     * legacy peers that don't send them still work — the responder treats
+     * the absence as "use the default MTU".
      *
-     * Out of scope for Phase 5: link MTU discovery, RTT measurement,
-     * keep-alive packets, watchdog timeouts, ratchets, link teardown
-     * negotiation, request/response RPC. Each of those is a separate
-     * later-phase work item. */
+     * Out of scope: RTT measurement, keep-alive, watchdog timeouts,
+     * ratchets, link teardown negotiation, request/response RPC. */
     class Link : public std::enable_shared_from_this<Link> {
     public:
         using Ptr                 = std::shared_ptr<Link>;
@@ -35,10 +41,13 @@ namespace RNS {
 
         /* Initiator side: build a link request to a known destination and
          * register the link with Transport. The link enters PENDING; it
-         * transitions to ACTIVE once an LRPROOF arrives. */
+         * transitions to ACTIVE once an LRPROOF arrives. `advertised_mtu`
+         * is the MTU this side wants to use; pass 0 to skip MTU bytes (and
+         * fall back to default Reticulum MTU). */
         static Ptr request(const Destination& destination,
                            EstablishedCallback on_established = nullptr,
-                           PacketCallback      on_packet      = nullptr);
+                           PacketCallback      on_packet      = nullptr,
+                           uint32_t            advertised_mtu = 0);
 
         /* Responder side: validate an incoming LINKREQUEST against a local
          * destination and, if valid, build the link, derive keys, and emit
@@ -61,6 +70,7 @@ namespace RNS {
         const Bytes&  hash()      const { return _hash; }
         Status        status()    const { return _status; }
         bool          initiator() const { return _initiator; }
+        uint32_t      mtu()       const { return _mtu; }
 
         void set_packet_callback(PacketCallback cb)            { _on_packet = std::move(cb); }
         void set_established_callback(EstablishedCallback cb)  { _on_established = std::move(cb); }
@@ -82,6 +92,9 @@ namespace RNS {
         Bytes _peer_x25519_pub;
         Bytes _shared_session_key;
         Bytes _hash;          /* link_id, used as destination hash on the wire */
+
+        uint32_t _local_mtu = 0;  /* what this side advertised; 0 == default */
+        uint32_t _mtu       = Type::Reticulum::MTU;
 
         std::shared_ptr<Cryptography::Token> _token;
 

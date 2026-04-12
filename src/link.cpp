@@ -8,11 +8,27 @@
 namespace RNS {
 
 namespace {
-    constexpr size_t X25519_KEY_BYTES  = 32;
-    constexpr size_t ED25519_KEY_BYTES = 32;
-    constexpr size_t SIGNATURE_BYTES   = 64;
-    constexpr size_t REQUEST_DATA_LEN  = X25519_KEY_BYTES + ED25519_KEY_BYTES;
-    constexpr size_t LRPROOF_DATA_LEN  = SIGNATURE_BYTES + X25519_KEY_BYTES;
+    constexpr size_t X25519_KEY_BYTES   = 32;
+    constexpr size_t ED25519_KEY_BYTES  = 32;
+    constexpr size_t SIGNATURE_BYTES    = 64;
+    constexpr size_t MTU_BYTES          = 3;
+    constexpr size_t REQUEST_DATA_BASE  = X25519_KEY_BYTES + ED25519_KEY_BYTES;
+    constexpr size_t REQUEST_DATA_MTU   = REQUEST_DATA_BASE + MTU_BYTES;
+    constexpr size_t LRPROOF_DATA_BASE  = SIGNATURE_BYTES + X25519_KEY_BYTES;
+    constexpr size_t LRPROOF_DATA_MTU   = LRPROOF_DATA_BASE + MTU_BYTES;
+
+    void encode_mtu(Bytes& dst, uint32_t mtu) {
+        uint32_t masked = mtu & Type::Link::MTU_BYTEMASK;
+        dst.append(static_cast<uint8_t>((masked >> 16) & 0xFF));
+        dst.append(static_cast<uint8_t>((masked >>  8) & 0xFF));
+        dst.append(static_cast<uint8_t>( masked        & 0xFF));
+    }
+
+    uint32_t decode_mtu(const uint8_t* p) {
+        return ((static_cast<uint32_t>(p[0]) << 16)
+              | (static_cast<uint32_t>(p[1]) <<  8)
+              |  static_cast<uint32_t>(p[2])) & Type::Link::MTU_BYTEMASK;
+    }
 }
 
 Link::Link(const Destination& destination, bool initiator)
@@ -42,18 +58,21 @@ void Link::derive_keys() {
 
 Link::Ptr Link::request(const Destination& destination,
                         EstablishedCallback on_established,
-                        PacketCallback      on_packet) {
+                        PacketCallback      on_packet,
+                        uint32_t            advertised_mtu) {
     auto link = std::shared_ptr<Link>(new Link(destination, true));
     link->_on_established = std::move(on_established);
     link->_on_packet      = std::move(on_packet);
     link->_status         = HANDSHAKE;
+    link->_local_mtu      = advertised_mtu;
+    link->_mtu            = advertised_mtu ? advertised_mtu : Type::Reticulum::MTU;
 
     Bytes request_data;
     request_data << link->_eph_x25519_pub << link->_eph_ed25519_pub;
+    if (advertised_mtu) encode_mtu(request_data, advertised_mtu);
 
     /* Link id is the truncated hash of the LINKREQUEST data — both sides
-     * can derive it independently. This is the destination hash that the
-     * matching LRPROOF will be addressed to. */
+     * can derive it independently. */
     link->_hash = Identity::truncated_hash(request_data);
 
     Packet pkt(destination, request_data, Type::Packet::LINKREQUEST);
@@ -67,7 +86,10 @@ Link::Ptr Link::request(const Destination& destination,
 Link::Ptr Link::validate_request(const Destination& owner,
                                  const Bytes&       request_data,
                                  const Packet&      /*request_packet*/) {
-    if (request_data.size() != REQUEST_DATA_LEN) {
+    bool has_mtu;
+    if      (request_data.size() == REQUEST_DATA_BASE) has_mtu = false;
+    else if (request_data.size() == REQUEST_DATA_MTU)  has_mtu = true;
+    else {
         DEBUGF("Link::validate_request: bad data len %zu", request_data.size());
         return nullptr;
     }
@@ -75,9 +97,16 @@ Link::Ptr Link::validate_request(const Destination& owner,
     auto link = std::shared_ptr<Link>(new Link(owner, false));
     Bytes peer_x25519_pub  = request_data.left(X25519_KEY_BYTES);
     Bytes peer_ed25519_pub = request_data.mid(X25519_KEY_BYTES, ED25519_KEY_BYTES);
-    (void)peer_ed25519_pub;  /* Phase 5 doesn't yet validate initiator signature. */
+    (void)peer_ed25519_pub;  /* Initiator-side identity proof is a later phase. */
 
-    /* link_hash is derived identically on both sides from the LINKREQUEST data. */
+    if (has_mtu) {
+        uint32_t peer_mtu = decode_mtu(request_data.data() + REQUEST_DATA_BASE);
+        link->_mtu = peer_mtu;
+        /* The responder will negotiate min(local, peer) once the firmware
+         * sets _local_mtu via a future API. For now responder accepts the
+         * initiator's proposed MTU verbatim. */
+    }
+
     link->_hash = Identity::truncated_hash(request_data);
 
     if (!link->open_session_from_peer_pub(peer_x25519_pub)) return nullptr;
@@ -85,23 +114,19 @@ Link::Ptr Link::validate_request(const Destination& owner,
 
     /* Build LRPROOF: signature(link_hash || responder_eph_x25519_pub)
      *               || responder_eph_x25519_pub
-     * Signature is by the destination owner's identity. */
+     *               || optional negotiated_mtu */
     Bytes signed_material;
     signed_material << link->_hash << link->_eph_x25519_pub;
     Bytes signature = owner.identity().sign(signed_material);
 
     Bytes proof_data;
     proof_data << signature << link->_eph_x25519_pub;
+    if (has_mtu) encode_mtu(proof_data, link->_mtu);
 
-    /* The LRPROOF packet's destination_hash is the link hash, not the owner
-     * destination's hash. Register the link with Transport so the next inbound
-     * frame for this hash routes here. */
     Transport::register_link(link);
 
     /* Manually construct the proof packet because Packet::pack() won't know
-     * to use the link hash as destination. We hand-build the raw frame:
-     *   flags(1) || hops(1) || link_hash(16) || context(1) || proof_data
-     */
+     * to use the link hash as destination. */
     Bytes raw;
     uint8_t flags = (Type::Packet::HEADER_1 << 6)
                   | (Type::Transport::BROADCAST << 4)
@@ -115,12 +140,19 @@ Link::Ptr Link::validate_request(const Destination& owner,
 void Link::on_proof(const Packet& proof_packet) {
     if (_status != HANDSHAKE || !_initiator) return;
     const Bytes& d = proof_packet.data();
-    if (d.size() != LRPROOF_DATA_LEN) {
+    bool has_mtu;
+    if      (d.size() == LRPROOF_DATA_BASE) has_mtu = false;
+    else if (d.size() == LRPROOF_DATA_MTU)  has_mtu = true;
+    else {
         DEBUGF("Link::on_proof: bad LRPROOF size %zu", d.size());
         return;
     }
-    Bytes signature        = d.left(SIGNATURE_BYTES);
-    Bytes peer_x25519_pub  = d.mid(SIGNATURE_BYTES, X25519_KEY_BYTES);
+    Bytes signature       = d.left(SIGNATURE_BYTES);
+    Bytes peer_x25519_pub = d.mid(SIGNATURE_BYTES, X25519_KEY_BYTES);
+    if (has_mtu) {
+        uint32_t negotiated = decode_mtu(d.data() + LRPROOF_DATA_BASE);
+        _mtu = negotiated;
+    }
 
     if (!open_session_from_peer_pub(peer_x25519_pub)) return;
 
