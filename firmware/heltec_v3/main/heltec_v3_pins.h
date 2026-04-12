@@ -1,10 +1,13 @@
 #pragma once
 
-/* Heltec WiFi LoRa 32 V3 — ESP32-S3 + SX1262
- * https://heltec.org/project/wifi-lora-32-v3/
+/* ESP32-S3 + SX1262 LoRa pinout.
  *
- * SX1262 sub-GHz LoRa radio is wired to dedicated SPI pins on the
- * ESP32-S3. The DIO1 pin is the radio's interrupt line. */
+ * Current target: Heltec WiFi LoRa 32 V3.
+ * Swap the values below for other boards:
+ *
+ *   Heltec V3:        NSS=8  SCK=9  MOSI=10 MISO=11 RST=12 BUSY=13 DIO1=14
+ *   LILYGO T3-S3:     NSS=7  SCK=5  MOSI=6  MISO=3  RST=8  BUSY=34 DIO1=33
+ *   Seeed XIAO+Wio:   NSS=41 SCK=7  MOSI=9  MISO=8  RST=42 BUSY=40 DIO1=39 */
 
 #define HELTEC_V3_LORA_NSS    8
 #define HELTEC_V3_LORA_SCK    9
@@ -14,8 +17,7 @@
 #define HELTEC_V3_LORA_BUSY   13
 #define HELTEC_V3_LORA_DIO1   14
 
-/* On-board SSD1306 OLED — not used by Phase 9 bring-up but defined here
- * so the future display interface knows the pin map. */
+/* On-board SSD1306 OLED. */
 #define HELTEC_V3_OLED_SDA    17
 #define HELTEC_V3_OLED_SCL    18
 #define HELTEC_V3_OLED_RST    21
@@ -23,8 +25,8 @@
 #define HELTEC_V3_LED         35
 #define HELTEC_V3_BUTTON_PRG  0
 
-/* Default LoRa parameters for ISM 868 MHz operation. Adjust per region. */
-#define HELTEC_V3_LORA_FREQ_MHZ          868.0
+/* LoRa parameters. US ISM is 902-928 MHz; we sit at 915 MHz center. */
+#define HELTEC_V3_LORA_FREQ_MHZ          915.0
 #define HELTEC_V3_LORA_BANDWIDTH_KHZ     125.0
 #define HELTEC_V3_LORA_SPREADING_FACTOR  9
 #define HELTEC_V3_LORA_CODING_RATE       7

@@ -7,8 +7,9 @@ CONFIG_IDF_TARGET="esp32s3"
 CONFIG_COMPILER_CXX_EXCEPTIONS=y
 CONFIG_COMPILER_CXX_EXCEPTIONS_EMG_POOL_SIZE=0
 
-# Use the native USB CDC for serial output (Heltec V3 has built-in USB).
-CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+# Heltec V3 has a CP2102 USB-UART bridge wired to UART0 — not native
+# ESP32-S3 USB CDC. Use default UART console so the CP2102 carries logs.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 
 # FreeRTOS config — recursive mutexes are used by Transport.
 CONFIG_FREERTOS_USE_TIMERS=y
