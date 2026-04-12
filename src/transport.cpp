@@ -10,7 +10,7 @@
 
 namespace RNS {
 
-std::recursive_mutex                        Transport::_mutex;
+ur_recursive_mutex_t*                       Transport::_mutex = nullptr;
 std::vector<std::shared_ptr<InterfaceImpl>> Transport::_interfaces;
 std::map<Bytes, Destination>                Transport::_destinations;
 std::map<Bytes, Transport::PathEntry>       Transport::_path_table;
@@ -19,15 +19,30 @@ std::set<Bytes>                             Transport::_seen_announces;
 Transport::AnnounceCallback                 Transport::_on_announce = nullptr;
 Transport::LinkRequestCallback              Transport::_on_link_request = nullptr;
 
-using Lock = std::lock_guard<std::recursive_mutex>;
+ur_recursive_mutex_t* Transport::mutex() {
+    if (!_mutex) _mutex = ur_hal_recursive_mutex_create();
+    return _mutex;
+}
+
+namespace {
+    class Lock {
+    public:
+        Lock() : _m(Transport::mutex()) { ur_hal_recursive_mutex_lock(_m); }
+        ~Lock() { ur_hal_recursive_mutex_unlock(_m); }
+        Lock(const Lock&) = delete;
+        Lock& operator=(const Lock&) = delete;
+    private:
+        ur_recursive_mutex_t* _m;
+    };
+}
 
 void Transport::register_interface(std::shared_ptr<InterfaceImpl> iface) {
-    Lock g(_mutex);
+    Lock g;
     _interfaces.push_back(std::move(iface));
 }
 
 void Transport::deregister_interface(const std::shared_ptr<InterfaceImpl>& iface) {
-    Lock g(_mutex);
+    Lock g;
     _interfaces.erase(std::remove(_interfaces.begin(), _interfaces.end(), iface),
                       _interfaces.end());
 }
@@ -40,41 +55,41 @@ const std::vector<std::shared_ptr<InterfaceImpl>>& Transport::interfaces() {
 }
 
 void Transport::register_destination(const Destination& dest) {
-    Lock g(_mutex);
+    Lock g;
     _destinations.insert_or_assign(dest.hash(), dest);
 }
 
 void Transport::deregister_destination(const Destination& dest) {
-    Lock g(_mutex);
+    Lock g;
     _destinations.erase(dest.hash());
 }
 
 Destination Transport::find_destination_from_hash(const Bytes& hash) {
-    Lock g(_mutex);
+    Lock g;
     auto it = _destinations.find(hash);
     return it == _destinations.end() ? Destination{Type::NONE} : it->second;
 }
 
 void Transport::register_link(const std::shared_ptr<Link>& link) {
     if (!link) return;
-    Lock g(_mutex);
+    Lock g;
     _links.insert_or_assign(link->hash(), link);
 }
 
 void Transport::deregister_link(const std::shared_ptr<Link>& link) {
     if (!link) return;
-    Lock g(_mutex);
+    Lock g;
     _links.erase(link->hash());
 }
 
 std::shared_ptr<Link> Transport::find_link(const Bytes& link_hash) {
-    Lock g(_mutex);
+    Lock g;
     auto it = _links.find(link_hash);
     return it == _links.end() ? nullptr : it->second;
 }
 
 void Transport::set_link_request_handler(LinkRequestCallback cb) {
-    Lock g(_mutex);
+    Lock g;
     _on_link_request = std::move(cb);
 }
 
@@ -86,7 +101,7 @@ void Transport::broadcast(const Bytes& raw, const std::shared_ptr<InterfaceImpl>
      * head-of-line blocking against other tasks. */
     std::vector<std::shared_ptr<InterfaceImpl>> snapshot;
     {
-        Lock g(_mutex);
+        Lock g;
         snapshot = _interfaces;
     }
     for (auto& iface : snapshot) {
@@ -96,12 +111,12 @@ void Transport::broadcast(const Bytes& raw, const std::shared_ptr<InterfaceImpl>
 }
 
 bool Transport::has_path(const Bytes& destination_hash) {
-    Lock g(_mutex);
+    Lock g;
     return _path_table.find(destination_hash) != _path_table.end();
 }
 
 uint8_t Transport::hops_to(const Bytes& destination_hash) {
-    Lock g(_mutex);
+    Lock g;
     auto it = _path_table.find(destination_hash);
     return it == _path_table.end() ? 0 : it->second.hops;
 }
@@ -110,23 +125,23 @@ const Transport::PathEntry* Transport::lookup_path(const Bytes& destination_hash
     /* Returns a raw pointer into the path table — only safe under the
      * understanding that callers coordinate against concurrent writes.
      * For multi-task safety prefer has_path / hops_to which return by value. */
-    Lock g(_mutex);
+    Lock g;
     auto it = _path_table.find(destination_hash);
     return it == _path_table.end() ? nullptr : &it->second;
 }
 
 void Transport::clear_paths() {
-    Lock g(_mutex);
+    Lock g;
     _path_table.clear();
 }
 
 void Transport::on_announce(AnnounceCallback cb) {
-    Lock g(_mutex);
+    Lock g;
     _on_announce = std::move(cb);
 }
 
 void Transport::reset() {
-    Lock g(_mutex);
+    Lock g;
     _interfaces.clear();
     _destinations.clear();
     _path_table.clear();
@@ -137,7 +152,7 @@ void Transport::reset() {
 }
 
 void Transport::inbound(const Bytes& raw, const Interface& iface) {
-    Lock g(_mutex);
+    Lock g;
 
     Packet pkt(raw);
     if (!pkt.unpack()) return;

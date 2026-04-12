@@ -55,6 +55,29 @@ void ur_hal_mutex_destroy(ur_mutex_t* m) {
 void ur_hal_mutex_lock(ur_mutex_t* m)   { pthread_mutex_lock(&m->m); }
 void ur_hal_mutex_unlock(ur_mutex_t* m) { pthread_mutex_unlock(&m->m); }
 
+struct ur_recursive_mutex { pthread_mutex_t m; };
+
+ur_recursive_mutex_t* ur_hal_recursive_mutex_create(void) {
+    ur_recursive_mutex_t* m = (ur_recursive_mutex_t*)malloc(sizeof(*m));
+    if (!m) return NULL;
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+    int rc = pthread_mutex_init(&m->m, &attr);
+    pthread_mutexattr_destroy(&attr);
+    if (rc != 0) { free(m); return NULL; }
+    return m;
+}
+
+void ur_hal_recursive_mutex_destroy(ur_recursive_mutex_t* m) {
+    if (!m) return;
+    pthread_mutex_destroy(&m->m);
+    free(m);
+}
+
+void ur_hal_recursive_mutex_lock(ur_recursive_mutex_t* m)   { pthread_mutex_lock(&m->m); }
+void ur_hal_recursive_mutex_unlock(ur_recursive_mutex_t* m) { pthread_mutex_unlock(&m->m); }
+
 struct ur_task { pthread_t tid; ur_task_fn fn; void* arg; };
 
 static void* s_trampoline(void* p) {

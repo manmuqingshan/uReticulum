@@ -41,6 +41,27 @@ void ur_hal_mutex_destroy(ur_mutex_t* m) {
 void ur_hal_mutex_lock(ur_mutex_t* m)   { xSemaphoreTake(m->h, portMAX_DELAY); }
 void ur_hal_mutex_unlock(ur_mutex_t* m) { xSemaphoreGive(m->h); }
 
+/* FreeRTOS recursive mutex requires configUSE_RECURSIVE_MUTEXES = 1. */
+struct ur_recursive_mutex { SemaphoreHandle_t h; };
+
+ur_recursive_mutex_t* ur_hal_recursive_mutex_create(void) {
+    SemaphoreHandle_t h = xSemaphoreCreateRecursiveMutex();
+    if (!h) return NULL;
+    ur_recursive_mutex_t* m = (ur_recursive_mutex_t*)pvPortMalloc(sizeof(*m));
+    if (!m) { vSemaphoreDelete(h); return NULL; }
+    m->h = h;
+    return m;
+}
+
+void ur_hal_recursive_mutex_destroy(ur_recursive_mutex_t* m) {
+    if (!m) return;
+    vSemaphoreDelete(m->h);
+    vPortFree(m);
+}
+
+void ur_hal_recursive_mutex_lock(ur_recursive_mutex_t* m)   { xSemaphoreTakeRecursive(m->h, portMAX_DELAY); }
+void ur_hal_recursive_mutex_unlock(ur_recursive_mutex_t* m) { xSemaphoreGiveRecursive(m->h); }
+
 struct ur_task { TaskHandle_t h; };
 
 ur_task_t* ur_hal_task_spawn(const char* name,

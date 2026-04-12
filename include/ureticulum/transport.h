@@ -2,12 +2,12 @@
 
 #include <functional>
 #include <map>
-#include <mutex>
 #include <set>
 #include <vector>
 
 #include "ureticulum/bytes.h"
 #include "ureticulum/destination.h"
+#include "ureticulum/hal.h"
 #include "ureticulum/interface.h"
 
 namespace RNS {
@@ -39,15 +39,10 @@ namespace RNS {
         static void        deregister_destination(const Destination& dest);
         static Destination find_destination_from_hash(const Bytes& hash);
 
-        /* Link tracking. Phase 5 dispatches inbound frames addressed to a
-         * link's hash (LRPROOF and DATA-over-Link) to the registered link. */
         static void                  register_link(const std::shared_ptr<Link>& link);
         static void                  deregister_link(const std::shared_ptr<Link>& link);
         static std::shared_ptr<Link> find_link(const Bytes& link_hash);
 
-        /* Server-side hook: invoked when a LINKREQUEST arrives addressed to a
-         * locally-registered destination. The handler should call
-         * Link::validate_request and return the resulting link. */
         static void set_link_request_handler(LinkRequestCallback cb);
 
         static void broadcast(const Bytes& raw, const std::shared_ptr<InterfaceImpl>& skip = nullptr);
@@ -61,13 +56,19 @@ namespace RNS {
         static void on_announce(AnnounceCallback cb);
         static void reset();
 
+        /* Lazy-init accessor for the recursive mutex protecting the static
+         * state below. Public so the in-file Lock RAII helper can reach it
+         * without being a friend. */
+        static ur_recursive_mutex_t* mutex();
+
     private:
-        /* Recursive because the inbound→process_announce→broadcast→loopback
-         * peer→handle_incoming→Transport::inbound chain re-enters on the
-         * same thread when running with the in-process LoopbackInterface.
-         * Real (out-of-process) interfaces don't need recursion, but the
-         * cost is negligible and it lets host tests use loopback freely. */
-        static std::recursive_mutex                             _mutex;
+        /* HAL-backed recursive mutex. Recursive because the
+         * inbound→process_announce→broadcast→loopback peer→handle_incoming→
+         * Transport::inbound chain re-enters on the same task when running
+         * with the in-process LoopbackInterface. Backed by the HAL (not
+         * std::recursive_mutex) because newlib-nano on bare-metal ARM does
+         * not ship <mutex>. */
+        static ur_recursive_mutex_t* _mutex;
 
         static std::vector<std::shared_ptr<InterfaceImpl>>      _interfaces;
         static std::map<Bytes, Destination>                     _destinations;

@@ -23,6 +23,17 @@ void        ur_hal_mutex_destroy(ur_mutex_t* m);
 void        ur_hal_mutex_lock(ur_mutex_t* m);
 void        ur_hal_mutex_unlock(ur_mutex_t* m);
 
+/* Recursive mutex — same thread can lock multiple times. Required for the
+ * Transport routing path where inbound→broadcast→loopback peer→inbound
+ * re-enters on the same task. We do not use std::recursive_mutex because
+ * newlib-nano on bare-metal ARM does not ship <mutex>. */
+typedef struct ur_recursive_mutex ur_recursive_mutex_t;
+
+ur_recursive_mutex_t* ur_hal_recursive_mutex_create(void);
+void                  ur_hal_recursive_mutex_destroy(ur_recursive_mutex_t* m);
+void                  ur_hal_recursive_mutex_lock(ur_recursive_mutex_t* m);
+void                  ur_hal_recursive_mutex_unlock(ur_recursive_mutex_t* m);
+
 typedef void (*ur_task_fn)(void* arg);
 typedef struct ur_task ur_task_t;
 
