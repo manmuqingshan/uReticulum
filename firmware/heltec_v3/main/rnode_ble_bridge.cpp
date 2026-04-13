@@ -342,16 +342,20 @@ void run(std::shared_ptr<LoraInterface> lora) {
      * headless board — the user still has to approve the pair from
      * `bluetoothctl pair <addr>` once, and BlueZ remembers the bond
      * thereafter. */
-    /* TODO: BLE pairing with BlueZ is currently broken — NimBLE rejects
-     * the SC numeric comparison with BLE_SM_ERR_NUMCMP no matter what
-     * IO capability or MITM flag we pick. Until that's sorted, run
-     * without SMP. Python RNS's device_bonded() check must be patched
-     * client-side to allow connecting. Reticulum's own crypto layer
-     * still provides end-to-end Ed25519/X25519 integrity on top. */
+    /* LE Secure Connections pairing, Just Works. Python RNS's
+     * BLEConnection requires the device to be bonded at the OS level
+     * before it will attempt to use it, so we need to complete SMP
+     * and store the keys. */
     ble_hs_cfg.sm_io_cap        = BLE_SM_IO_CAP_NO_IO;
-    ble_hs_cfg.sm_bonding       = 0;
+    ble_hs_cfg.sm_bonding       = 1;
     ble_hs_cfg.sm_mitm          = 0;
-    ble_hs_cfg.sm_sc            = 0;
+    ble_hs_cfg.sm_sc            = 1;
+    ble_hs_cfg.sm_our_key_dist  = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_hs_cfg.sm_their_key_dist= BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+
+    /* Persist bond state (keys, IRK, etc.) to NVS via the default
+     * NimBLE config store. */
+    ble_store_config_init();
 
     nimble_port_freertos_init(nimble_host_task);
 
