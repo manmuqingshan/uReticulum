@@ -71,6 +71,7 @@ bool LoraInterface::start() {
         return false;
     }
     _online = true;
+    _radio_on = true;
     ESP_LOGI(TAG, "SX1262 listening on %.1f MHz SF%d BW%.0f",
              HELTEC_V3_LORA_FREQ_MHZ,
              HELTEC_V3_LORA_SPREADING_FACTOR,
@@ -81,6 +82,7 @@ bool LoraInterface::start() {
 void LoraInterface::stop() {
     if (_radio) _radio->standby();
     _online = false;
+    _radio_on = false;
 }
 
 void LoraInterface::loop() {
@@ -88,14 +90,24 @@ void LoraInterface::loop() {
     g_packet_pending = false;
 
     size_t len = _radio->getPacketLength();
-    if (len == 0 || len > Type::Reticulum::MTU) {
+    /* RNode frames have an extra header byte prepended by upstream
+     * RNode_Firmware, so a raw RX can be up to MTU+1. Keep a small
+     * headroom on the read buffer. */
+    constexpr size_t MAX_FRAME = Type::Reticulum::MTU + 32;
+    if (len == 0 || len > MAX_FRAME) {
         _radio->startReceive();
         return;
     }
-    uint8_t buf[Type::Reticulum::MTU];
+    uint8_t buf[MAX_FRAME];
     int state = _radio->readData(buf, len);
     if (state == RADIOLIB_ERR_NONE) {
-        this->handle_incoming(Bytes(buf, len));
+        if (_raw_rx) {
+            float rssi = _radio->getRSSI();
+            float snr  = _radio->getSNR();
+            _raw_rx(buf, len, rssi, snr);
+        } else {
+            this->handle_incoming(Bytes(buf, len));
+        }
     } else {
         ESP_LOGW(TAG, "readData failed: %d", state);
     }
@@ -110,6 +122,56 @@ void LoraInterface::send_outgoing(const RNS::Bytes& data) {
         ESP_LOGW(TAG, "transmit failed: %d", state);
     }
     _radio->startReceive();
+}
+
+void LoraInterface::send_raw(const uint8_t* data, size_t len) {
+    if (!_radio || !_radio_on) return;
+    _txb += len;
+    int state = _radio->transmit(const_cast<uint8_t*>(data), len);
+    if (state != RADIOLIB_ERR_NONE) {
+        /* Logging in RNode mode would corrupt the KISS stream on UART0,
+         * so suppress output here — the bridge reports errors via KISS. */
+    }
+    _radio->startReceive();
+}
+
+bool LoraInterface::set_frequency_mhz(float mhz) {
+    if (!_radio) return false;
+    return _radio->setFrequency(mhz) == RADIOLIB_ERR_NONE;
+}
+
+bool LoraInterface::set_bandwidth_khz(float khz) {
+    if (!_radio) return false;
+    return _radio->setBandwidth(khz) == RADIOLIB_ERR_NONE;
+}
+
+bool LoraInterface::set_spreading_factor(int sf) {
+    if (!_radio) return false;
+    return _radio->setSpreadingFactor((uint8_t)sf) == RADIOLIB_ERR_NONE;
+}
+
+bool LoraInterface::set_coding_rate(int cr) {
+    if (!_radio) return false;
+    return _radio->setCodingRate((uint8_t)cr) == RADIOLIB_ERR_NONE;
+}
+
+bool LoraInterface::set_tx_power_dbm(int dbm) {
+    if (!_radio) return false;
+    return _radio->setOutputPower((int8_t)dbm) == RADIOLIB_ERR_NONE;
+}
+
+bool LoraInterface::set_radio_online(bool online) {
+    if (!_radio) return false;
+    if (online == _radio_on) return true;
+    int state;
+    if (online) {
+        state = _radio->startReceive();
+    } else {
+        state = _radio->standby();
+    }
+    if (state != RADIOLIB_ERR_NONE) return false;
+    _radio_on = online;
+    return true;
 }
 
 }

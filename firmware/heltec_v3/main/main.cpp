@@ -7,6 +7,7 @@
  */
 
 #include <atomic>
+#include <set>
 #include <stdio.h>
 #include <string>
 
@@ -18,20 +19,32 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "sdkconfig.h"
+
 #include "ureticulum/destination.h"
 #include "ureticulum/identity.h"
+#include "ureticulum/link.h"
 #include "ureticulum/reticulum.h"
 #include "ureticulum/transport.h"
 
 #include "heltec_v3_pins.h"
 #include "lora_interface.h"
 #include "oled.h"
+#include "rnode_bridge.h"
 
 static const char* TAG = "app";
 
 namespace {
     std::atomic<uint32_t> g_announce_count{0};
     std::atomic<uint32_t> g_rx_count{0};
+    std::atomic<uint32_t> g_link_tx{0};
+    std::atomic<uint32_t> g_link_rx{0};
+
+    /* Outbound link held so the main loop can poll it for status and fire
+     * a one-shot hello payload once the LRPROOF lands. Written from the
+     * announce callback (Transport task), read from the main loop. */
+    std::shared_ptr<RNS::Link> g_out_link;
+    std::atomic<bool> g_hello_sent{false};
 
     /* ISR-set flag for the PRG button (GPIO0, active LOW, external pullup). */
     volatile bool g_button_pressed = false;
@@ -90,9 +103,24 @@ namespace {
 
         HeltecV3::Oled::print(5, 0, "915.0 SF9 BW125 US");
 
-        snprintf(line, sizeof(line), "TX %-4u  RX %-4u",
+        snprintf(line, sizeof(line), "Anc TX%-3u RX%-3u",
                  (unsigned)g_announce_count.load(),
                  (unsigned)g_rx_count.load());
+        HeltecV3::Oled::print(6, 0, line);
+
+        const char* link_state = "--";
+        if (g_out_link) {
+            switch (g_out_link->status()) {
+                case RNS::Link::PENDING:   link_state = "pd"; break;
+                case RNS::Link::HANDSHAKE: link_state = "hs"; break;
+                case RNS::Link::ACTIVE:    link_state = "ok"; break;
+                case RNS::Link::CLOSED:    link_state = "xx"; break;
+            }
+        }
+        snprintf(line, sizeof(line), "Lnk %s TX%-3u RX%-3u",
+                 link_state,
+                 (unsigned)g_link_tx.load(),
+                 (unsigned)g_link_rx.load());
         HeltecV3::Oled::print(7, 0, line);
 
         HeltecV3::Oled::flush();
@@ -101,6 +129,18 @@ namespace {
     uint64_t now_ms() { return (uint64_t)(esp_timer_get_time() / 1000); }
 }
 
+#if CONFIG_HELTEC_V3_MODE_RNODE
+extern "C" void app_main() {
+    /* RNode bridge mode: skip PM, OLED, Identity and Reticulum entirely.
+     * The board is a dumb radio driven by Python RNS over UART0. */
+    auto lora = HeltecV3::LoraInterface::create();
+    if (!lora->start()) {
+        /* No OLED, no log — just park the CPU. Host will time out. */
+        while (true) vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    HeltecV3::RNodeBridge::run(lora);  /* never returns */
+}
+#else
 extern "C" void app_main() {
     ESP_LOGI(TAG, "uReticulum on Heltec V3 starting");
 
@@ -173,10 +213,42 @@ extern "C" void app_main() {
     ESP_LOGI(TAG, "identity hash: %s", id_hex.c_str());
     ESP_LOGI(TAG, "destination hash: %s", dst_hex.c_str());
 
-    RNS::Transport::on_announce([](const RNS::Bytes& dh, const RNS::Identity&, const RNS::Bytes&) {
-        (void)dh;
-        g_rx_count.fetch_add(1);
-    });
+    /* Responder side: when a peer sends us a LINKREQUEST, validate it and
+     * install a packet callback that logs + counts every inbound payload. */
+    RNS::Transport::set_link_request_handler(
+        [](const RNS::Destination& owner, const RNS::Bytes& req, const RNS::Packet& pkt) -> std::shared_ptr<RNS::Link> {
+            auto link = RNS::Link::validate_request(owner, req, pkt);
+            if (link) {
+                ESP_LOGI(TAG, "link inbound accepted, hash=%s", link->hash().toHex().c_str());
+                link->set_packet_callback([](const RNS::Bytes& data, const RNS::Link& l) {
+                    g_link_rx.fetch_add(1);
+                    std::string txt(reinterpret_cast<const char*>(data.data()), data.size());
+                    ESP_LOGI(TAG, "link RX[%s] %zu bytes: %s",
+                             l.hash().toHex().substr(0, 8).c_str(),
+                             (size_t)data.size(), txt.c_str());
+                });
+            }
+            return link;
+        });
+
+    /* Initiator side: when we hear an announce from a peer that isn't us
+     * and we don't already have an outbound link open, construct an OUT
+     * destination from their Identity and fire a LINKREQUEST. Once the
+     * LRPROOF lands the main loop notices Link::ACTIVE and sends hello. */
+    RNS::Bytes our_dst_hash = dest.hash();
+    RNS::Transport::on_announce(
+        [our_dst_hash](const RNS::Bytes& dh, const RNS::Identity& peer_id, const RNS::Bytes&) {
+            g_rx_count.fetch_add(1);
+            if (dh == our_dst_hash) return;
+            if (g_out_link) return;
+            ESP_LOGI(TAG, "heard peer %s, opening link", dh.toHex().c_str());
+            RNS::Destination peer_dest(peer_id,
+                                       RNS::Type::Destination::OUT,
+                                       RNS::Type::Destination::SINGLE,
+                                       "ureticulum",
+                                       "heltec_v3");
+            g_out_link = RNS::Link::request(peer_dest);
+        });
 
     if (!RNS::Reticulum::start(/*tick_ms=*/50, /*stack_words=*/8192, /*priority=*/5)) {
         ESP_LOGE(TAG, "Reticulum::start failed");
@@ -207,6 +279,22 @@ extern "C" void app_main() {
         if (oled_up && !HeltecV3::Oled::is_suspended() && t >= g_display_off_at_ms) {
             ESP_LOGI(TAG, "display timeout, suspending OLED");
             HeltecV3::Oled::suspend();
+        }
+
+        /* One-shot hello payload once the outbound link reaches ACTIVE.
+         * The link handshake happens on the Transport task; we poll it
+         * here rather than sending from a callback so we don't need to
+         * juggle non-const access to Link from the const-ref packet cb. */
+        if (g_out_link && !g_hello_sent.load() && g_out_link->status() == RNS::Link::ACTIVE) {
+            ESP_LOGI(TAG, "link ACTIVE, sending hello");
+            try {
+                std::string msg = "hello from " + id_hex.substr(0, 8);
+                g_out_link->send(RNS::Bytes(msg));
+                g_link_tx.fetch_add(1);
+                g_hello_sent.store(true);
+            } catch (const std::exception& e) {
+                ESP_LOGW(TAG, "link send failed: %s", e.what());
+            }
         }
 
         /* Announce once at boot (tick==0) then every 5 minutes. Real
@@ -241,3 +329,4 @@ extern "C" void app_main() {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
+#endif  /* CONFIG_HELTEC_V3_MODE_RNODE */

@@ -1,0 +1,27 @@
+menu "uReticulum Heltec V3"
+
+    choice HELTEC_V3_MODE
+        prompt "Firmware operating mode"
+        default HELTEC_V3_MODE_TRANSPORT
+        help
+            Select whether this board runs as a standalone Reticulum
+            transport node (default) or as a host-attached RNode bridge
+            that Python Reticulum drives over USB serial.
+
+        config HELTEC_V3_MODE_TRANSPORT
+            bool "Transport node (autonomous)"
+            help
+                Boots into uReticulum with its own Identity, announces a
+                local destination, and opens Links to peers over LoRa.
+
+        config HELTEC_V3_MODE_RNODE
+            bool "RNode bridge (host-controlled)"
+            help
+                Exposes the SX1262 to a USB host via the RNode KISS
+                serial protocol so Python RNS (nomadnet, rnsd, etc.)
+                can drive it as an rnode interface. The uReticulum stack
+                is not started in this mode; the board is a dumb radio.
+
+    endchoice
+
+endmenu

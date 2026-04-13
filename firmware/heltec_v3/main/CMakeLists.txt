@@ -4,12 +4,14 @@ idf_component_register(
         "lora_interface.cpp"
         "radiolib_esp_idf_hal.cpp"
         "oled.cpp"
+        "rnode_bridge.cpp"
     INCLUDE_DIRS
         "."
     REQUIRES
         ureticulum
         driver
         esp_driver_i2c
+        esp_driver_uart
         esp_timer
         jgromes__RadioLib
 )

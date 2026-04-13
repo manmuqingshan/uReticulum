@@ -1,0 +1,15 @@
+# Overlay that switches the Heltec V3 firmware into RNode bridge mode.
+# Use together with the base defaults:
+#   idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.rnode" build flash
+CONFIG_HELTEC_V3_MODE_TRANSPORT=n
+CONFIG_HELTEC_V3_MODE_RNODE=y
+
+# Shut the bootloader log level down to ERROR so the early-boot spam
+# doesn't fill the serial port before Python RNS starts its detect
+# sequence. Runtime ESP_LOG output is silenced by esp_log_level_set
+# from app_main. The default UART console is kept enabled so UART0
+# stays clocked and pin-muxed; we write to it via ROM functions.
+CONFIG_BOOTLOADER_LOG_LEVEL_ERROR=y
+CONFIG_BOOTLOADER_LOG_LEVEL=1
+CONFIG_LOG_DEFAULT_LEVEL_NONE=y
+CONFIG_LOG_DEFAULT_LEVEL=0

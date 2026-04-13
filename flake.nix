@@ -10,7 +10,10 @@
   outputs = { self, nixpkgs, flake-utils, nixpkgs-esp-dev }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs { inherit system; };
+        pkgs = import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+        };
         # nixpkgs-esp-dev pins its own (older) nixpkgs that still has
         # python310 — we use it only for the ESP-IDF derivations to avoid
         # the python interpreter mismatch.
@@ -39,6 +42,8 @@
             cppcheck
 
             python3
+            python3Packages.rns
+            python3Packages.nomadnet
             git
 
             pandoc

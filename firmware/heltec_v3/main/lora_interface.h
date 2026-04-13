@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 
 #include "ureticulum/interface.h"
@@ -14,6 +15,13 @@ namespace HeltecV3 {
      * interface task drains in loop(). */
     class LoraInterface : public RNS::InterfaceImpl {
     public:
+        /* When set, incoming frames bypass handle_incoming() and go to this
+         * callback instead. Used by the RNode bridge mode, where we want the
+         * raw bytes plus RSSI/SNR to forward over KISS, not delivery into
+         * the uReticulum stack. */
+        using RawRxCallback = std::function<void(const uint8_t* data, size_t len,
+                                                 float rssi_dbm, float snr_db)>;
+
         /* Public so std::shared_ptr can construct/destruct via new/delete. */
         LoraInterface();
         ~LoraInterface() override;
@@ -26,9 +34,27 @@ namespace HeltecV3 {
         void send_outgoing(const RNS::Bytes& data) override;
         std::string toString() const override { return "LoraInterface[heltec_v3]"; }
 
+        /* Raw byte path (RNode bridge mode). */
+        void set_raw_rx_callback(RawRxCallback cb) { _raw_rx = std::move(cb); }
+        void send_raw(const uint8_t* data, size_t len);
+
+        /* Runtime radio parameter adjustment. Values match RadioLib units:
+         * frequency in MHz, bandwidth in kHz, SF 5..12, CR 5..8, power dBm.
+         * Returns true if the underlying SX1262 call succeeded. Callers in
+         * RNode mode treat a failure as ERROR_INITRADIO. */
+        bool set_frequency_mhz(float mhz);
+        bool set_bandwidth_khz(float khz);
+        bool set_spreading_factor(int sf);
+        bool set_coding_rate(int cr);
+        bool set_tx_power_dbm(int dbm);
+        bool set_radio_online(bool online);
+        bool radio_online() const { return _radio_on; }
+
     private:
-        EspIdfHal*  _hal   = nullptr;
-        SX1262*     _radio = nullptr;
+        EspIdfHal*  _hal     = nullptr;
+        SX1262*     _radio   = nullptr;
+        bool        _radio_on = false;
+        RawRxCallback _raw_rx;
     };
 
 }
