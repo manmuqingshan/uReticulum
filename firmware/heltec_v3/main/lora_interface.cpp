@@ -107,14 +107,15 @@ void LoraInterface::loop() {
     uint8_t buf[MAX_FRAME];
     int state = _radio->readData(buf, len);
     if (state == RADIOLIB_ERR_NONE && len > 1) {
-        /* Strip the RNode header byte (first byte) before handing the
-         * payload to Reticulum or the raw-RX callback. For the raw
-         * (RNode bridge) path we keep the header since the host's
-         * RNodeInterface expects to strip it itself. */
+        /* Strip the RNode header byte (first byte on the wire). The
+         * upstream RNode firmware adds this on TX and strips on RX
+         * before forwarding to the host — the host never sees it.
+         * Both the Reticulum stack path (handle_incoming) and the
+         * bridge path (raw_rx → KISS CMD_DATA) get headerless data. */
         if (_raw_rx) {
             float rssi = _radio->getRSSI();
             float snr  = _radio->getSNR();
-            _raw_rx(buf, len, rssi, snr);
+            _raw_rx(buf + 1, len - 1, rssi, snr);
         } else {
             this->handle_incoming(Bytes(buf + 1, len - 1));
         }
@@ -147,8 +148,15 @@ void LoraInterface::send_outgoing(const RNS::Bytes& data) {
 
 void LoraInterface::send_raw(const uint8_t* data, size_t len) {
     if (!_radio || !_radio_on) return;
+    /* Prepend the RNode header byte the same way send_outgoing does.
+     * The host sends headerless KISS CMD_DATA; we add the header
+     * before it goes on the air so real RNode receivers can parse it. */
+    uint8_t buf[Type::Reticulum::MTU + 32];
+    buf[0] = (uint8_t)(esp_random() & 0xF0);
+    if (len > sizeof(buf) - 1) len = sizeof(buf) - 1;
+    memcpy(buf + 1, data, len);
     _txb += len;
-    int state = _radio->transmit(const_cast<uint8_t*>(data), len);
+    int state = _radio->transmit(buf, len + 1);
     if (state != RADIOLIB_ERR_NONE) {
         /* Logging in RNode mode would corrupt the KISS stream on UART0,
          * so suppress output here — the bridge reports errors via KISS. */
