@@ -31,6 +31,12 @@ namespace HeltecV3 {
         bool        _connected = false;
         uint64_t    _reconnect_at = 0;
 
+        /* HDLC parser state for the TCP rx path. */
+        bool    _in_frame = false;
+        bool    _escape   = false;
+        uint8_t _rx_buf[600];
+        size_t  _rx_len   = 0;
+
         bool try_connect();
         void disconnect();
     };

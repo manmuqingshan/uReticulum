@@ -14,9 +14,16 @@ using namespace RNS;
 
 static const char* TAG = "tcp_if";
 
-/* Python Reticulum TCPClientInterface uses a 2-byte big-endian length
- * prefix for each frame, followed by the raw Reticulum packet bytes.
- * HDLC-like framing (FEND/FESC) is NOT used on TCP — just len+data. */
+/* Python Reticulum TCPClientInterface defaults to HDLC framing:
+ * FLAG + HDLC_ESCAPE(payload) + FLAG. HDLC escape replaces 0x7D with
+ * 0x7D 0x5D and 0x7E with 0x7D 0x5E. (KISS framing is optional and
+ * off by default.) */
+
+namespace {
+    constexpr uint8_t HDLC_FLAG     = 0x7E;
+    constexpr uint8_t HDLC_ESC      = 0x7D;
+    constexpr uint8_t HDLC_ESC_MASK = 0x20;
+}
 
 namespace HeltecV3 {
 
@@ -122,25 +129,29 @@ void TcpInterface::loop() {
         return;
     }
 
-    /* Read available frames. Each frame: [len_hi][len_lo][payload...] */
-    uint8_t hdr[2];
-    int n = recv(_sock, hdr, 2, 0);
-    if (n == 2) {
-        uint16_t frame_len = ((uint16_t)hdr[0] << 8) | hdr[1];
-        if (frame_len > 0 && frame_len <= 600) {
-            uint8_t buf[600];
-            uint16_t got = 0;
-            while (got < frame_len) {
-                int r = recv(_sock, buf + got, frame_len - got, 0);
-                if (r <= 0) break;
-                got += r;
+    /* Read HDLC-framed data from the TCP socket. */
+    uint8_t byte;
+    int n = recv(_sock, &byte, 1, 0);
+    if (n == 1) {
+        if (byte == HDLC_FLAG) {
+            if (_in_frame && _rx_len > 0) {
+                this->handle_incoming(Bytes(_rx_buf, _rx_len));
             }
-            if (got == frame_len) {
-                this->handle_incoming(Bytes(buf, frame_len));
+            _in_frame = true;
+            _escape   = false;
+            _rx_len   = 0;
+        } else if (_in_frame) {
+            if (byte == HDLC_ESC) {
+                _escape = true;
+            } else {
+                if (_escape) {
+                    byte ^= HDLC_ESC_MASK;
+                    _escape = false;
+                }
+                if (_rx_len < sizeof(_rx_buf)) _rx_buf[_rx_len++] = byte;
             }
         }
     } else if (n == 0) {
-        /* Peer closed. */
         ESP_LOGI(TAG, "peer closed connection");
         disconnect();
     } else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -151,15 +162,24 @@ void TcpInterface::loop() {
 
 void TcpInterface::send_outgoing(const Bytes& data) {
     if (!_connected || _sock < 0) return;
+    ESP_LOGI(TAG, "TX %u bytes via TCP", (unsigned)data.size());
     _txb += data.size();
 
-    /* Length-prefix + payload in one write. */
-    uint8_t hdr[2] = {
-        (uint8_t)((data.size() >> 8) & 0xFF),
-        (uint8_t)( data.size()       & 0xFF),
-    };
-    if (send(_sock, hdr, 2, 0) != 2 ||
-        send(_sock, data.data(), data.size(), 0) != (int)data.size()) {
+    /* HDLC frame: FLAG + escaped payload + FLAG */
+    uint8_t buf[1400];
+    size_t o = 0;
+    buf[o++] = HDLC_FLAG;
+    for (size_t i = 0; i < data.size() && o + 2 < sizeof(buf); ++i) {
+        uint8_t b = data.data()[i];
+        if (b == HDLC_FLAG || b == HDLC_ESC) {
+            buf[o++] = HDLC_ESC;
+            buf[o++] = b ^ HDLC_ESC_MASK;
+        } else {
+            buf[o++] = b;
+        }
+    }
+    buf[o++] = HDLC_FLAG;
+    if (send(_sock, buf, o, 0) != (int)o) {
         ESP_LOGW(TAG, "send failed");
         disconnect();
     }
