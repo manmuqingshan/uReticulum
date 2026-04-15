@@ -76,11 +76,16 @@ namespace RNS {
         void set_packet_callback(PacketCallback cb)            { _on_packet = std::move(cb); }
         void set_established_callback(EstablishedCallback cb)  { _on_established = std::move(cb); }
 
+        /* Derive the link_id from a LINKREQUEST packet's hashable part,
+         * stripping any trailing MTU bytes so both sides compute the same
+         * hash regardless of whether MTU negotiation bytes are present. */
+        static Bytes link_id_from_lr_packet(const Packet& packet, size_t data_len);
+
     private:
         Link(const Destination& destination, bool initiator);
         void derive_keys();
         bool open_session_from_peer_pub(const Bytes& peer_x25519_pub);
-        void handle_request(const Bytes& plaintext);
+        void handle_request(const Bytes& plaintext, const Packet& packet);
 
         Destination _destination;
         bool        _initiator     = false;

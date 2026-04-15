@@ -69,7 +69,7 @@ TEST_CASE("Link request data round-trips through validate_request") {
     REQUIRE(static_cast<bool>(server_link));
     CHECK(server_link->status() == Link::ACTIVE);
     CHECK(!server_link->initiator());
-    CHECK(server_link->hash() == Identity::truncated_hash(request_data));
+    CHECK(server_link->hash() == Link::link_id_from_lr_packet(req_pkt, request_data.size()));
 
     Transport::reset();
 }

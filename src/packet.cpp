@@ -74,20 +74,28 @@ bool Packet::unpack() {
     if (_object->_raw.size() < 2 + Type::Reticulum::DESTINATION_LENGTH + 1)
         return false;
     const uint8_t* p = _object->_raw.data();
+    size_t len = _object->_raw.size();
     _object->_flags = p[0];
     _object->_hops  = p[1];
     unpack_flags(_object->_flags);
 
+    constexpr size_t DST_LEN = Type::Reticulum::DESTINATION_LENGTH;
+    size_t off;
+
     if (_object->_header_type == TP::HEADER_2) {
-        /* Phase 4 will handle two-address (transport-relayed) headers. */
-        return false;
+        /* Transport-relayed packet: transport_id + destination_hash */
+        if (len < 2 + 2 * DST_LEN + 1) return false;
+        _object->_transport_id     = Bytes(p + 2, DST_LEN);
+        _object->_destination_hash = Bytes(p + 2 + DST_LEN, DST_LEN);
+        off = 2 + 2 * DST_LEN;
+    } else {
+        _object->_destination_hash = Bytes(p + 2, DST_LEN);
+        off = 2 + DST_LEN;
     }
 
-    _object->_destination_hash = Bytes(p + 2, Type::Reticulum::DESTINATION_LENGTH);
-    size_t off = 2 + Type::Reticulum::DESTINATION_LENGTH;
     _object->_context = static_cast<TP::context_types>(p[off]);
     off += 1;
-    _object->_data = Bytes(p + off, _object->_raw.size() - off);
+    _object->_data = Bytes(p + off, len - off);
     _object->_packet_hash = Identity::full_hash(get_hashable_part());
     return true;
 }
@@ -97,14 +105,25 @@ Bytes Packet::get_hash() const {
 }
 
 Bytes Packet::get_hashable_part() const {
-    /* Hash covers everything in raw[] except the IFAC flag (top bit of byte 0)
-     * and the hops counter (byte 1). Phase 3 doesn't use IFAC, so we just mask
-     * the top bit of byte 0 and skip byte 1. */
+    /* Hash covers everything in raw[] except the hops counter (byte 1) and
+     * the upper nibble of byte 0 (IFAC flag, header type, transport type).
+     * Only the lower nibble (destination type + packet type) participates
+     * in the hash — matching Python Reticulum's raw[0] & 0x0F.
+     * For HEADER_2, skip the transport_id (first DST_LEN bytes after hops). */
     Bytes hashable;
     if (_object->_raw.size() < 2) return hashable;
-    uint8_t first = _object->_raw.data()[0] & 0b01111111;
+    uint8_t first = _object->_raw.data()[0] & 0b00001111;
     hashable.append(first);
-    hashable.append(_object->_raw.data() + 2, _object->_raw.size() - 2);
+    if (_object->_header_type == Type::Packet::HEADER_2) {
+        /* Skip transport_id: raw[2..2+DST_LEN], keep rest */
+        constexpr size_t DST_LEN = Type::Reticulum::DESTINATION_LENGTH;
+        size_t skip = 2 + DST_LEN;
+        if (_object->_raw.size() > skip) {
+            hashable.append(_object->_raw.data() + skip, _object->_raw.size() - skip);
+        }
+    } else {
+        hashable.append(_object->_raw.data() + 2, _object->_raw.size() - 2);
+    }
     return hashable;
 }
 

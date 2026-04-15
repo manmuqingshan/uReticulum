@@ -14,6 +14,7 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_pm.h"
+#include "esp_random.h"
 #include "esp_sleep.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -73,9 +74,9 @@ namespace {
     /* ESP32-S3 dual-core idle percentage averaged across both cores.
      * 100% = both IDLE tasks got all the CPU time in the sample window. */
     uint32_t measure_idle_percent() {
-        TaskStatus_t status[10];
+        TaskStatus_t status[24];
         uint32_t total_runtime = 0;
-        UBaseType_t n = uxTaskGetSystemState(status, 10, &total_runtime);
+        UBaseType_t n = uxTaskGetSystemState(status, 24, &total_runtime);
         uint32_t idle_runtime = 0;
         int idle_tasks_found = 0;
         for (UBaseType_t i = 0; i < n; ++i) {
@@ -229,6 +230,7 @@ extern "C" void app_main() {
         while (true) vTaskDelay(pdMS_TO_TICKS(1000));
     }
     RNS::Transport::register_interface(lora);
+    vTaskDelay(1);  /* yield to feed watchdog after LoRa init */
 
     if (oled_up) {
         HeltecV3::Oled::set_line(4, "LoRa online");
@@ -330,10 +332,12 @@ extern "C" void app_main() {
      * destination from their Identity and fire a LINKREQUEST. Once the
      * LRPROOF lands the main loop notices Link::ACTIVE and sends hello. */
     RNS::Bytes our_dst_hash = dest.hash();
+    RNS::Bytes our_id_hash = identity.hash();
     RNS::Transport::on_announce(
-        [our_dst_hash](const RNS::Bytes& dh, const RNS::Identity& peer_id, const RNS::Bytes&) {
+        [our_dst_hash, our_id_hash](const RNS::Bytes& dh, const RNS::Identity& peer_id, const RNS::Bytes&) {
             g_rx_count.fetch_add(1);
             if (dh == our_dst_hash) return;
+            if (peer_id.hash() == our_id_hash) return;  /* skip our own identity */
             if (g_out_link) return;
             ESP_LOGI(TAG, "heard peer %s, opening link", dh.toHex().c_str());
             RNS::Destination peer_dest(peer_id,
@@ -344,7 +348,9 @@ extern "C" void app_main() {
             g_out_link = RNS::Link::request(peer_dest);
         });
 
-    if (!RNS::Reticulum::start(/*tick_ms=*/50, /*stack_words=*/8192, /*priority=*/5)) {
+    vTaskDelay(1);  /* yield to feed watchdog after identity + destination setup */
+
+    if (!RNS::Reticulum::start(/*tick_ms=*/100, /*stack_words=*/8192, /*priority=*/5)) {
         ESP_LOGE(TAG, "Reticulum::start failed");
     }
 
@@ -352,6 +358,7 @@ extern "C" void app_main() {
      * directly on this ESP32. The node name is what appears in the
      * nomadnet browser's directory. */
     HeltecV3::NomadnetNode::start(identity, "uReticulum Heltec V3");
+    vTaskDelay(1);  /* yield to feed watchdog after NomadNet announce */
 
     /* Display stays on for DISPLAY_ON_MS after boot so the user can read
      * the identity hash. */
@@ -430,10 +437,15 @@ extern "C" void app_main() {
          * on network-state change, and maybe every few hours for path
          * freshness. 5 min here is a compromise for bring-up testing so
          * the RX counter on the peer moves at a pace you can see. */
-        if (tick == 0 || tick % 300 == 0) {
+        /* Announce at boot and every ~5 minutes with random jitter (±30s)
+         * to avoid collisions when multiple nodes boot simultaneously. */
+        static uint32_t next_announce = 0;
+        if (tick == 0 || tick >= next_announce) {
+            next_announce = tick + 270 + (esp_random() % 60);
             ESP_LOGI(TAG, "announcing %s", dst_hex.c_str());
             try {
                 dest.announce(RNS::Bytes("hello from heltec v3"));
+                HeltecV3::NomadnetNode::announce();
                 g_announce_count.fetch_add(1);
             } catch (const std::exception& e) {
                 ESP_LOGW(TAG, "announce failed: %s", e.what());
@@ -452,6 +464,11 @@ extern "C" void app_main() {
                 render_status(id_hex, dst_hex, idle);
             }
         }
+
+        /* Poll LoRa for RX and drain TX queue. Must run on main task
+         * because all SPI access to the SX1262 must be single-threaded.
+         * loop() is overridden to no-op so the Reticulum task skips it. */
+        lora->poll();
 
         /* Poll TCP interface for inbound frames from the Internet. */
         if (tcp) tcp->loop();

@@ -231,7 +231,11 @@ bool Transport::process_announce(const Packet& packet, const Interface& iface) {
     Identity announced(false);
     announced.load_public_key(public_key);
     if (!announced.validate(signature, signed_data)) {
-        DEBUGF("Transport: invalid announce signature for %s", packet.destination_hash().toHex().c_str());
+        INFOF("invalid announce sig dest=%s ht=%u dsz=%zu sdsz=%zu pk=%s",
+              packet.destination_hash().toHex().c_str(),
+              (unsigned)packet.header_type(),
+              d.size(), signed_data.size(),
+              public_key.toHex().substr(0,16).c_str());
         return false;
     }
 

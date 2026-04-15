@@ -1,11 +1,13 @@
 #include "lora_interface.h"
 
 #include <RadioLib.h>
+#include <string.h>
 
 #include "driver/spi_master.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 
 #include "heltec_v3_pins.h"
@@ -22,6 +24,14 @@ namespace {
     void IRAM_ATTR on_dio1() {
         g_packet_pending = true;
     }
+
+    /* TX queue: send_outgoing (any task) enqueues, loop() (main task) drains.
+     * This avoids multi-task SPI access which causes assert failures. */
+    struct TxItem {
+        uint8_t data[Type::Reticulum::MTU + 32];
+        size_t  len;
+    };
+    QueueHandle_t g_tx_queue = nullptr;
 }
 
 namespace HeltecV3 {
@@ -38,6 +48,7 @@ std::shared_ptr<LoraInterface> LoraInterface::create() {
 }
 
 bool LoraInterface::start() {
+    if (!g_tx_queue) g_tx_queue = xQueueCreate(8, sizeof(TxItem));
     _hal = new EspIdfHal(HELTEC_V3_LORA_SCK, HELTEC_V3_LORA_MISO, HELTEC_V3_LORA_MOSI,
                          HELTEC_V3_LORA_NSS, /*spi_host=*/SPI2_HOST);
     _radio = new SX1262(new Module(_hal,
@@ -91,14 +102,15 @@ void LoraInterface::stop() {
     _radio_on = false;
 }
 
-void LoraInterface::loop() {
+void LoraInterface::poll() {
+    /* Drain TX queue first (from any task via send_outgoing). */
+    drain_tx_queue();
+
+    /* Then check for RX. */
     if (!g_packet_pending) return;
     g_packet_pending = false;
 
     size_t len = _radio->getPacketLength();
-    /* RNode frames have an extra header byte prepended by upstream
-     * RNode_Firmware, so a raw RX can be up to MTU+1. Keep a small
-     * headroom on the read buffer. */
     constexpr size_t MAX_FRAME = Type::Reticulum::MTU + 32;
     if (len == 0 || len > MAX_FRAME) {
         _radio->startReceive();
@@ -107,11 +119,7 @@ void LoraInterface::loop() {
     uint8_t buf[MAX_FRAME];
     int state = _radio->readData(buf, len);
     if (state == RADIOLIB_ERR_NONE && len > 1) {
-        /* Strip the RNode header byte (first byte on the wire). The
-         * upstream RNode firmware adds this on TX and strips on RX
-         * before forwarding to the host — the host never sees it.
-         * Both the Reticulum stack path (handle_incoming) and the
-         * bridge path (raw_rx → KISS CMD_DATA) get headerless data. */
+        ESP_LOGI(TAG, "RX %u bytes on LoRa", (unsigned)len);
         if (_raw_rx) {
             float rssi = _radio->getRSSI();
             float snr  = _radio->getSNR();
@@ -126,41 +134,48 @@ void LoraInterface::loop() {
 }
 
 void LoraInterface::send_outgoing(const RNS::Bytes& data) {
-    if (!_radio) return;
-    /* Prepend the RNode header byte that real RNode firmware adds on
-     * the wire.  Without this, a stock RNode strips the first byte
-     * (treating it as the header) and corrupts the Reticulum frame.
-     * The header is a random nibble in the upper 4 bits; the lower 4
-     * bits carry flags (FLAG_SPLIT for multi-part packets, which we
-     * never generate). */
-    uint8_t buf[Type::Reticulum::MTU + 32];
-    buf[0] = (uint8_t)(esp_random() & 0xF0);
-    size_t len = data.size();
-    if (len > sizeof(buf) - 1) len = sizeof(buf) - 1;
-    memcpy(buf + 1, data.data(), len);
-    _txb += len;
-    int state = _radio->transmit(buf, len + 1);
-    if (state != RADIOLIB_ERR_NONE) {
-        ESP_LOGW(TAG, "transmit failed: %d", state);
+    if (!_radio || !g_tx_queue) return;
+    /* Enqueue for the main loop to transmit. This is safe to call
+     * from any task — FreeRTOS queues handle synchronization. */
+    TxItem item;
+    item.data[0] = (uint8_t)(esp_random() & 0xF0);  /* RNode header */
+    item.len = data.size();
+    if (item.len > sizeof(item.data) - 1) item.len = sizeof(item.data) - 1;
+    memcpy(item.data + 1, data.data(), item.len);
+    item.len += 1;  /* include header byte */
+    _txb += data.size();
+    if (xQueueSend(g_tx_queue, &item, pdMS_TO_TICKS(100)) != pdTRUE) {
+        ESP_LOGW(TAG, "TX queue full, dropping packet");
     }
-    _radio->startReceive();
+}
+
+void LoraInterface::drain_tx_queue() {
+    TxItem item;
+    while (xQueueReceive(g_tx_queue, &item, 0) == pdTRUE) {
+        _radio->standby();
+        int state = _radio->transmit(item.data, item.len);
+        if (state == RADIOLIB_ERR_NONE) {
+            ESP_LOGI(TAG, "TX %u bytes on LoRa", (unsigned)item.len);
+        } else {
+            ESP_LOGW(TAG, "transmit failed: %d", state);
+        }
+        g_packet_pending = false;
+        _radio->startReceive();
+    }
 }
 
 void LoraInterface::send_raw(const uint8_t* data, size_t len) {
     if (!_radio || !_radio_on) return;
-    /* Prepend the RNode header byte the same way send_outgoing does.
-     * The host sends headerless KISS CMD_DATA; we add the header
-     * before it goes on the air so real RNode receivers can parse it. */
+    /* send_raw is only used in RNode bridge mode which runs single-threaded
+     * on the main task, so direct SPI access is safe here. */
     uint8_t buf[Type::Reticulum::MTU + 32];
     buf[0] = (uint8_t)(esp_random() & 0xF0);
     if (len > sizeof(buf) - 1) len = sizeof(buf) - 1;
     memcpy(buf + 1, data, len);
     _txb += len;
-    int state = _radio->transmit(buf, len + 1);
-    if (state != RADIOLIB_ERR_NONE) {
-        /* Logging in RNode mode would corrupt the KISS stream on UART0,
-         * so suppress output here — the bridge reports errors via KISS. */
-    }
+    _radio->standby();
+    _radio->transmit(buf, len + 1);
+    g_packet_pending = false;
     _radio->startReceive();
 }
 

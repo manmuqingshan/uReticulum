@@ -10,4 +10,7 @@ namespace HeltecV3::NomadnetNode {
      * hardcoded pages). Call after Reticulum::start(). */
     void start(const RNS::Identity& identity, const char* node_name);
 
+    /* Re-announce the node. Call periodically from the main loop. */
+    void announce();
+
 }

@@ -129,12 +129,14 @@ void TcpInterface::loop() {
         return;
     }
 
-    /* Read HDLC-framed data from the TCP socket. */
+    /* Drain all available HDLC-framed data from the TCP socket.
+     * The socket has a 10ms recv timeout so this won't block long. */
     uint8_t byte;
-    int n = recv(_sock, &byte, 1, 0);
-    if (n == 1) {
+    int n;
+    while ((n = recv(_sock, &byte, 1, 0)) == 1) {
         if (byte == HDLC_FLAG) {
             if (_in_frame && _rx_len > 0) {
+                ESP_LOGI(TAG, "RX %u bytes from TCP", (unsigned)_rx_len);
                 this->handle_incoming(Bytes(_rx_buf, _rx_len));
             }
             _in_frame = true;
@@ -151,7 +153,8 @@ void TcpInterface::loop() {
                 if (_rx_len < sizeof(_rx_buf)) _rx_buf[_rx_len++] = byte;
             }
         }
-    } else if (n == 0) {
+    }
+    if (n == 0) {
         ESP_LOGI(TAG, "peer closed connection");
         disconnect();
     } else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {

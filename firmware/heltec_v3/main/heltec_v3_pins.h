@@ -25,6 +25,12 @@
 #define HELTEC_V3_LED         35
 #define HELTEC_V3_BUTTON_PRG  0
 
+/* Battery voltage via ADC1 channel 0 (GPIO1).
+ * On-board 100K/100K resistor divider → multiply ADC reading by 2.
+ * ADC_CTRL (GPIO37) must be driven HIGH to enable the divider. */
+#define HELTEC_V3_VBAT_ADC    1
+#define HELTEC_V3_VBAT_CTRL   37
+
 /* LoRa parameters. US ISM is 902-928 MHz; we sit at 915 MHz center. */
 #define HELTEC_V3_LORA_FREQ_MHZ          915.0
 #define HELTEC_V3_LORA_BANDWIDTH_KHZ     125.0

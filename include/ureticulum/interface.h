@@ -23,6 +23,11 @@ namespace RNS {
 
         virtual std::string toString() const { return "Interface[" + _name + "]"; }
 
+        const std::string& name() const { return _name; }
+        bool   online() const { return _online; }
+        size_t rxb()    const { return _rxb; }
+        size_t txb()    const { return _txb; }
+
     protected:
         InterfaceImpl() = default;
         explicit InterfaceImpl(const char* name) : _name(name) {}

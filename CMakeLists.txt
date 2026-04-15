@@ -43,6 +43,7 @@ add_library(ureticulum STATIC
     src/transport.cpp
     src/link.cpp
     src/resource.cpp
+    src/msgpack.cpp
     src/reticulum.cpp
     src/filesystem.cpp
     src/filesystems/posix.cpp

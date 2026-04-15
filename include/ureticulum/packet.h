@@ -57,6 +57,7 @@ namespace RNS {
             uint8_t _hops  = 0;
             Destination _destination = Destination{Type::NONE};
             Bytes _destination_hash;
+            Bytes _transport_id;
             Bytes _data;
             Bytes _raw;
             Bytes _packet_hash;

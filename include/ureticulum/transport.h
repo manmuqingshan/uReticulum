@@ -52,6 +52,7 @@ namespace RNS {
         static uint8_t       hops_to(const Bytes& destination_hash);
         static const PathEntry* lookup_path(const Bytes& destination_hash);
         static void          clear_paths();
+        static const std::map<Bytes, PathEntry>& path_table() { return _path_table; }
 
         static void on_announce(AnnounceCallback cb);
         static void reset();

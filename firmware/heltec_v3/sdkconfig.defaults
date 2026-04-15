@@ -64,6 +64,8 @@ CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 # Allow OTA over plain HTTP (no TLS) for LAN update servers.
 CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP=y
 
-# Default WiFi credentials for testing.
-CONFIG_WIFI_DEFAULT_SSID="BenniNetz"
-CONFIG_WIFI_DEFAULT_PSK="Nishykabi42!"
+# WiFi + TCP defaults are empty — configure via menuconfig or NVS.
+CONFIG_WIFI_DEFAULT_SSID=""
+CONFIG_WIFI_DEFAULT_PSK=""
+CONFIG_TCP_INTERFACE_HOST=""
+CONFIG_TCP_INTERFACE_PORT=4965

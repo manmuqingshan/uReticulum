@@ -30,7 +30,11 @@ namespace HeltecV3 {
 
         bool start() override;
         void stop()  override;
-        void loop()  override;
+        /* loop() is intentionally a no-op — the Reticulum task calls it, but
+         * all SPI access must happen on the main task. Call poll() from the
+         * main loop instead. */
+        void loop()  override {}
+        void poll();
         void send_outgoing(const RNS::Bytes& data) override;
         std::string toString() const override { return "LoraInterface[heltec_v3]"; }
 
@@ -49,6 +53,9 @@ namespace HeltecV3 {
         bool set_tx_power_dbm(int dbm);
         bool set_radio_online(bool online);
         bool radio_online() const { return _radio_on; }
+
+        /* Drain the TX queue (called from loop on the main task). */
+        void drain_tx_queue();
 
     private:
         EspIdfHal*  _hal     = nullptr;
