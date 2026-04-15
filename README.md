@@ -62,18 +62,6 @@ idf.py build
 idf.py -p /dev/ttyUSB0 flash
 ```
 
-### Host tests
-
-```bash
-mkdir -p build-host && cd build-host
-cmake .. -DURETICULUM_PORT=posix
-make -j$(nproc) ureticulum_tests
-./ureticulum_tests
-```
-
-61 test cases, 1208 assertions covering crypto, identity, transport,
-link handshake, loopback, filesystem, concurrency, and resource transfer.
-
 ## Firmware modes
 
 The Heltec V3 firmware supports three operating modes, selectable via
