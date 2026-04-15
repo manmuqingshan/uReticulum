@@ -1,71 +1,120 @@
 # uReticulum
 
-The `u` carries three meanings at once: **Unified** (one codebase merging
-microReticulum, RNode, and RNode CE), **micro** (`µ`, a nod to the
-microReticulum heritage), and **Ultimate** (the version that drops the
-Arduino framework for FreeRTOS).
+A fast, power efficient, native [Reticulum](https://reticulum.network) stack for embedded microcontrollers.
 
-A [Reticulum](https://reticulum.network) node stack for embedded
-microcontrollers (Nordic nRF, STM32, and others), built on **FreeRTOS**.
+| | RNode | microReticulum | uReticulum |
+|---|---|---|---|
+| Autonomous node | No (host-driven modem) | Yes | Yes |
+| NomadNet pages | No | No | Yes |
+| WiFi + TCP bridge | No | No | Yes |
+| BLE bridge | Bluedroid | No | NimBLE |
+| OTA updates | No | No | Yes |
+| FreeRTOS idle sleep | No (Arduino loop) | No | 99% idle |
+| Hardware crypto | No | No | mbedTLS accelerated |
+| Radio driver | Arduino-LoRa | Arduino-LoRa | RadioLib (SX1262 native) |
 
-uReticulum unifies three existing projects into one codebase:
+## What works
 
-| Upstream | What uReticulum takes from it |
-|---|---|
-| [microReticulum](../microReticulum) | The protocol implementation: Identity, Destination, Packet, Link, Transport, Interface. |
-| [RNode_Firmware](../RNode_Firmware) | Node behaviour: KISS framing, serial host protocol, LoRa modem configuration, RNode command set. |
-| [RNode_Firmware_CE](../RNode_Firmware_CE) | Additional hardware support and Community Edition features. |
+- **Full Reticulum protocol**: Identity, Destination, Packet, Link,
+  Transport with announce propagation and path discovery
+- **LoRa mesh**: SX1262 via RadioLib: peer-to-peer encrypted Links over
+  915 MHz with automatic announce rebroadcast
+- **WiFi + TCP bridge**: connect to an upstream `rnsd` instance to bridge
+  LoRa traffic to the wider Reticulum network over the Internet
+- **NomadNet node**: serves a live metrics page (uptime, battery, heap,
+  RSSI, interfaces, known peers) that NomadNet users can browse
+- **RNode bridge**: USB serial or Bluetooth LE KISS interface: the board
+  acts as an RNode that Python Reticulum can drive directly
+- **All crypto in hardware**: Ed25519, X25519, AES-256-CBC, HMAC-SHA256,
+  HKDF, SHA-256/512 via mbedTLS + Monocypher
+- **99% CPU idle** in steady state, watchdog-clean boot
 
-## Why rebuild
+## Supported hardware
 
-All three upstream projects are Arduino based. That worked but is now
-the biggest thing standing between RNode class hardware and its
-potential.
+| Board | MCU | Radio | Status |
+|---|---|---|---|
+| Heltec WiFi LoRa 32 V3 | ESP32-S3 | SX1262 | Primary target, fully working |
+| Heltec WiFi LoRa 32 V4 | ESP32-S3 | SX1262 + PA/LNA | Port in progress |
+| RAK3172 (STM32WLE5CC) | Cortex-M4F + SX1262 SoC |: | Port in progress |
 
-The Arduino framework:
+## Build
 
-- **Leaves power on the table.** `loop()` is a busy wait. Delay primitives
-  are blocking. No tickless idle, no principled low power modes. For
-  battery powered mesh nodes this is the single biggest source of
-  avoidable current draw.
-- **Ties the codebase to a single task.** On ESP32, one core sits idle
-  while the other churns through packets, crypto, and UI in sequence.
-- **Couples the protocol stack to the transport.** A slow crypto
-  operation stalls radio reception. A busy interface starves the display.
-- **Pins us to Arduino ecosystem libraries** (ArduinoJson, sandeepmistry
-  LoRa, rweather Crypto, hideakitai MsgPack) that are effectively
-  unmaintained.
+uReticulum uses Nix for reproducible builds. All toolchains (ESP-IDF,
+ARM GCC, host compilers, mbedTLS, Monocypher) come from `flake.nix`.
 
-## Why FreeRTOS
+```bash
+cd uReticulum
+nix develop
+```
 
-- **Power efficiency.** Tickless idle drops the MCU into deep sleep
-  whenever no task is runnable. Receive listen current can go from tens
-  of milliamps to hundreds of microamps.
-- **Preemption.** Transport, each interface RX, and the serial host run
-  at their own priorities. Crypto no longer blocks a radio interrupt.
-- **Task isolation.** Each interface owns its stack, its priority, and
-  its queue into transport. Bugs stay contained.
-- **Portability.** FreeRTOS runs on Nordic nRF, STM32, and every other
-  MCU family worth targeting, behind the same C API.
-- **Mature tooling.** Static analysis, unit testing, and ThreadSanitizer
-  on the host simulator build all work out of the box.
+### Firmware (Heltec V3)
 
-## Why RadioLib
+```bash
+cd firmware/heltec_v3
 
-The upstream projects each use a different radio library. Consolidating
-is worthwhile on its own, but [RadioLib](https://github.com/jgromes/RadioLib)
-is specifically the right choice:
+# Configure (optional: defaults work out of the box)
+idf.py menuconfig
 
-- **One driver, every chip we care about.** SX127x, SX126x, SX128x, and
-  LR11x0 families plus FSK parts. Swapping radios between boards becomes
-  a constructor argument.
-- **Explicit non-Arduino HAL.** `RadioLibHal` is a pure virtual class
-  consumers subclass. Example ports for ESP-IDF, Pico, Raspberry Pi, and
-  Tock already live in the repo.
-- **Actively maintained.** New chip families land upstream within weeks
-  of silicon availability.
-- **MIT licensed.** Compatible with everything else in the tree.
-- **Lets us think in `Interface`, not in pins.** With the radio
-  abstracted, our Reticulum `Interface` becomes *"give me N bytes, I'll
-  give you back a modulated packet,"* with no chip specific code leaking
-  into the network stack.
+# Build
+idf.py build
+
+# Flash
+idf.py -p /dev/ttyUSB0 flash
+```
+
+### Host tests
+
+```bash
+mkdir -p build-host && cd build-host
+cmake .. -DURETICULUM_PORT=posix
+make -j$(nproc) ureticulum_tests
+./ureticulum_tests
+```
+
+61 test cases, 1208 assertions covering crypto, identity, transport,
+link handshake, loopback, filesystem, concurrency, and resource transfer.
+
+## Firmware modes
+
+The Heltec V3 firmware supports three operating modes, selectable via
+`idf.py menuconfig` under **uReticulum Heltec V3**:
+
+### Transport node (default)
+
+The board runs a full Reticulum stack with its own persistent Identity.
+It announces on LoRa and (if configured) bridges to the Internet via
+WiFi + TCP. It hosts a NomadNet-compatible page with live system metrics.
+
+### RNode bridge (USB UART)
+
+The board exposes the SX1262 as an RNode over USB serial using the KISS
+protocol. Python Reticulum (`rnsd`, NomadNet, Sideband) can drive it
+directly with `interface_type = RNodeInterface`. The uReticulum stack is
+not started: the board is a dumb radio modem.
+
+### RNode bridge (Bluetooth LE)
+
+Same as the USB variant, but the KISS interface runs over a Nordic UART
+Service BLE GATT profile. Connect from Python RNS with
+`port = ble://RNode XXXX`. Adds NimBLE (~300 KB) to the firmware.
+
+## Configuration
+
+WiFi and TCP bridge settings are under `idf.py menuconfig` →
+**uReticulum WiFi**:
+
+| Setting | Description | Default |
+|---|---|---|
+| `WIFI_DEFAULT_SSID` | WiFi network name | empty (WiFi disabled) |
+| `WIFI_DEFAULT_PSK` | WiFi password | empty |
+| `TCP_INTERFACE_HOST` | Upstream rnsd IP/hostname | empty (TCP disabled) |
+| `TCP_INTERFACE_PORT` | rnsd TCP port | 4965 |
+All settings can also be overridden at runtime via NVS (the firmware
+checks NVS first, then falls back to menuconfig defaults).
+
+### Identity persistence
+
+The node's 64-byte Ed25519+X25519 private key is stored in NVS on first
+boot and reused across reboots. The destination hash is stable: peers
+don't need to re-discover the node after a power cycle.
+

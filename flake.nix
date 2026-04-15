@@ -44,6 +44,7 @@
             python3
             python3Packages.rns
             python3Packages.nomadnet
+            python3Packages.flask
             git
 
             pandoc
