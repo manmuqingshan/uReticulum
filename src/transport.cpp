@@ -1,12 +1,12 @@
-#include "ureticulum/transport.h"
+#include "rtreticulum/transport.h"
 
 #include <algorithm>
 
-#include "ureticulum/identity.h"
-#include "ureticulum/link.h"
-#include "ureticulum/log.h"
-#include "ureticulum/os.h"
-#include "ureticulum/packet.h"
+#include "rtreticulum/identity.h"
+#include "rtreticulum/link.h"
+#include "rtreticulum/log.h"
+#include "rtreticulum/os.h"
+#include "rtreticulum/packet.h"
 
 namespace RNS {
 
@@ -20,15 +20,15 @@ Transport::AnnounceCallback                 Transport::_on_announce = nullptr;
 Transport::LinkRequestCallback              Transport::_on_link_request = nullptr;
 
 ur_recursive_mutex_t* Transport::mutex() {
-    if (!_mutex) _mutex = ur_hal_recursive_mutex_create();
+    if (!_mutex) _mutex = rt_hal_recursive_mutex_create();
     return _mutex;
 }
 
 namespace {
     class Lock {
     public:
-        Lock() : _m(Transport::mutex()) { ur_hal_recursive_mutex_lock(_m); }
-        ~Lock() { ur_hal_recursive_mutex_unlock(_m); }
+        Lock() : _m(Transport::mutex()) { rt_hal_recursive_mutex_lock(_m); }
+        ~Lock() { rt_hal_recursive_mutex_unlock(_m); }
         Lock(const Lock&) = delete;
         Lock& operator=(const Lock&) = delete;
     private:

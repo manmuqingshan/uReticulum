@@ -1,9 +1,9 @@
-# ESP-IDF defaults for uReticulum on Heltec V3.
+# ESP-IDF defaults for RTReticulum on Heltec V3.
 # These get baked into sdkconfig on first idf.py build.
 
 CONFIG_IDF_TARGET="esp32s3"
 
-# Enable C++ exceptions — uReticulum throws on a few error paths.
+# Enable C++ exceptions — RTReticulum throws on a few error paths.
 CONFIG_COMPILER_CXX_EXCEPTIONS=y
 CONFIG_COMPILER_CXX_EXCEPTIONS_EMG_POOL_SIZE=0
 
@@ -25,7 +25,7 @@ CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS=y
 # stack from app_main; the main task itself doesn't need to be huge.
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 
-# Enable mbedTLS algorithms uReticulum needs (these are usually on by
+# Enable mbedTLS algorithms RTReticulum needs (these are usually on by
 # default but listed for clarity).
 CONFIG_MBEDTLS_HARDWARE_AES=y
 CONFIG_MBEDTLS_HARDWARE_SHA=y

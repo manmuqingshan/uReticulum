@@ -6,10 +6,10 @@
 #include <thread>
 #include <vector>
 
-#include "ureticulum/destination.h"
-#include "ureticulum/identity.h"
-#include "ureticulum/interfaces/loopback.h"
-#include "ureticulum/transport.h"
+#include "rtreticulum/destination.h"
+#include "rtreticulum/identity.h"
+#include "rtreticulum/interfaces/loopback.h"
+#include "rtreticulum/transport.h"
 
 using namespace RNS;
 using Interfaces::LoopbackInterface;

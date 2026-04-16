@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-#include "ureticulum/interface.h"
+#include "rtreticulum/interface.h"
 
 namespace HeltecV3 {
 

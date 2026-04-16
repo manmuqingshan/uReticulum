@@ -3,14 +3,14 @@
 #include <functional>
 #include <memory>
 
-#include "ureticulum/interface.h"
+#include "rtreticulum/interface.h"
 
 class EspIdfHal;
 class SX1262;
 
 namespace HeltecV3 {
 
-    /* uReticulum LoRa interface backed by RadioLib's SX1262 driver. RX is
+    /* RTReticulum LoRa interface backed by RadioLib's SX1262 driver. RX is
      * triggered by DIO1 interrupt; the ISR sets a notification that the
      * interface task drains in loop(). */
     class LoraInterface : public RNS::InterfaceImpl {
@@ -18,7 +18,7 @@ namespace HeltecV3 {
         /* When set, incoming frames bypass handle_incoming() and go to this
          * callback instead. Used by the RNode bridge mode, where we want the
          * raw bytes plus RSSI/SNR to forward over KISS, not delivery into
-         * the uReticulum stack. */
+         * the RTReticulum stack. */
         using RawRxCallback = std::function<void(const uint8_t* data, size_t len,
                                                  float rssi_dbm, float snr_db)>;
 

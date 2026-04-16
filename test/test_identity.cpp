@@ -1,8 +1,8 @@
 // Note: this file was generated with the help of offline AI.
 #include "doctest.h"
 
-#include "ureticulum/destination.h"
-#include "ureticulum/identity.h"
+#include "rtreticulum/destination.h"
+#include "rtreticulum/identity.h"
 
 using namespace RNS;
 

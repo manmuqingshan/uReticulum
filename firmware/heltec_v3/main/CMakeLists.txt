@@ -15,7 +15,7 @@ idf_component_register(
     SRCS ${SRCS}
     INCLUDE_DIRS "."
     REQUIRES
-        ureticulum
+        rtreticulum
         driver
         esp_driver_i2c
         esp_driver_uart

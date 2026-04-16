@@ -1,11 +1,11 @@
-#include "ureticulum/cryptography/fernet.h"
+#include "rtreticulum/cryptography/fernet.h"
 
 #include <stdexcept>
 #include <string>
 
-#include "ureticulum/cryptography/aes.h"
-#include "ureticulum/cryptography/hmac.h"
-#include "ureticulum/cryptography/pkcs7.h"
+#include "rtreticulum/cryptography/aes.h"
+#include "rtreticulum/cryptography/hmac.h"
+#include "rtreticulum/cryptography/pkcs7.h"
 
 namespace RNS { namespace Cryptography {
 

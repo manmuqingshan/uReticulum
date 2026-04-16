@@ -1,10 +1,10 @@
-#include "ureticulum/resource.h"
+#include "rtreticulum/resource.h"
 
 #include <stdexcept>
 
-#include "ureticulum/cryptography/random.h"
-#include "ureticulum/identity.h"
-#include "ureticulum/log.h"
+#include "rtreticulum/cryptography/random.h"
+#include "rtreticulum/identity.h"
+#include "rtreticulum/log.h"
 
 namespace RNS {
 

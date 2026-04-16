@@ -12,7 +12,7 @@
 
 #include "heltec_v3_pins.h"
 #include "radiolib_esp_idf_hal.h"
-#include "ureticulum/type.h"
+#include "rtreticulum/type.h"
 
 using namespace RNS;
 

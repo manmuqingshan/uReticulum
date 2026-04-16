@@ -1,15 +1,15 @@
 // Note: this file was generated with the help of offline AI.
 #include "doctest.h"
 
-#include "ureticulum/cryptography/aes.h"
-#include "ureticulum/cryptography/ed25519.h"
-#include "ureticulum/cryptography/fernet.h"
-#include "ureticulum/cryptography/hashes.h"
-#include "ureticulum/cryptography/hkdf.h"
-#include "ureticulum/cryptography/hmac.h"
-#include "ureticulum/cryptography/random.h"
-#include "ureticulum/cryptography/token.h"
-#include "ureticulum/cryptography/x25519.h"
+#include "rtreticulum/cryptography/aes.h"
+#include "rtreticulum/cryptography/ed25519.h"
+#include "rtreticulum/cryptography/fernet.h"
+#include "rtreticulum/cryptography/hashes.h"
+#include "rtreticulum/cryptography/hkdf.h"
+#include "rtreticulum/cryptography/hmac.h"
+#include "rtreticulum/cryptography/random.h"
+#include "rtreticulum/cryptography/token.h"
+#include "rtreticulum/cryptography/x25519.h"
 
 using namespace RNS;
 using namespace RNS::Cryptography;

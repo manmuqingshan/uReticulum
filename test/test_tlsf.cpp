@@ -1,6 +1,6 @@
 // Note: this file was generated with the help of offline AI.
 #include "doctest.h"
-#include "ureticulum/memory.h"
+#include "rtreticulum/memory.h"
 
 using RNS::Utilities::Memory;
 

@@ -31,7 +31,7 @@
 #define HELTEC_V3_VBAT_ADC    1
 #define HELTEC_V3_VBAT_CTRL   37
 
-/* LoRa parameters — sourced from menuconfig (uReticulum LoRa menu).
+/* LoRa parameters — sourced from menuconfig (RTReticulum LoRa menu).
  * Frequency is stored as MHz*10 in Kconfig (int) to avoid float. */
 #include "sdkconfig.h"
 #define HELTEC_V3_LORA_FREQ_MHZ          (CONFIG_LORA_FREQ_MHZ_X10 / 10.0f)

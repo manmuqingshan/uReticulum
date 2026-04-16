@@ -1,11 +1,11 @@
-#include "ureticulum/destination.h"
+#include "rtreticulum/destination.h"
 
 #include <stdexcept>
 #include <string.h>
 
-#include "ureticulum/cryptography/random.h"
-#include "ureticulum/packet.h"
-#include "ureticulum/transport.h"
+#include "rtreticulum/cryptography/random.h"
+#include "rtreticulum/packet.h"
+#include "rtreticulum/transport.h"
 
 namespace RNS {
 

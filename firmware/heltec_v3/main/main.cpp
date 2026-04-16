@@ -1,5 +1,5 @@
 /*
- * uReticulum on Heltec WiFi LoRa 32 V3
+ * RTReticulum on Heltec WiFi LoRa 32 V3
  *
  * Build + flash (from this firmware/heltec_v3/ directory):
  *   nix develop ../..
@@ -25,11 +25,11 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 
-#include "ureticulum/destination.h"
-#include "ureticulum/identity.h"
-#include "ureticulum/link.h"
-#include "ureticulum/reticulum.h"
-#include "ureticulum/transport.h"
+#include "rtreticulum/destination.h"
+#include "rtreticulum/identity.h"
+#include "rtreticulum/link.h"
+#include "rtreticulum/reticulum.h"
+#include "rtreticulum/transport.h"
 
 #include "esp_ota_ops.h"
 
@@ -100,7 +100,7 @@ namespace {
                        const std::string& dst_hex,
                        uint32_t idle_pct) {
         HeltecV3::Oled::clear();
-        HeltecV3::Oled::print(0, 0, "uReticulum");
+        HeltecV3::Oled::print(0, 0, "RTReticulum");
         HeltecV3::Oled::hline(9);
 
         char line[24];
@@ -163,7 +163,7 @@ extern "C" void app_main() {
 }
 #else
 extern "C" void app_main() {
-    ESP_LOGI(TAG, "uReticulum on Heltec V3 starting");
+    ESP_LOGI(TAG, "RTReticulum on Heltec V3 starting");
 
     /* NVS must be initialized before anything that touches it —
      * WiFi driver, Identity persistence, OTA URL storage, etc. */
@@ -214,7 +214,7 @@ extern "C" void app_main() {
     bool oled_up = HeltecV3::Oled::init();
     if (oled_up) {
         HeltecV3::Oled::clear();
-        HeltecV3::Oled::print(0, 0, "uReticulum");
+        HeltecV3::Oled::print(0, 0, "RTReticulum");
         HeltecV3::Oled::hline(9);
         HeltecV3::Oled::print(2, 0, "Booting...");
         HeltecV3::Oled::flush();
@@ -271,7 +271,7 @@ extern "C" void app_main() {
     {
         nvs_handle_t h;
         bool loaded = false;
-        if (nvs_open("ureticulum", NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_open("rtreticulum", NVS_READONLY, &h) == ESP_OK) {
             size_t len = 0;
             if (nvs_get_blob(h, "id_prv", nullptr, &len) == ESP_OK && len == 64) {
                 uint8_t key[64];
@@ -288,7 +288,7 @@ extern "C" void app_main() {
             identity.createKeys();
             RNS::Bytes prv = identity.get_private_key();
             nvs_handle_t wh;
-            if (nvs_open("ureticulum", NVS_READWRITE, &wh) == ESP_OK) {
+            if (nvs_open("rtreticulum", NVS_READWRITE, &wh) == ESP_OK) {
                 nvs_set_blob(wh, "id_prv", prv.data(), prv.size());
                 nvs_commit(wh);
                 nvs_close(wh);
@@ -300,7 +300,7 @@ extern "C" void app_main() {
     RNS::Destination dest(identity,
                           RNS::Type::Destination::IN,
                           RNS::Type::Destination::SINGLE,
-                          "ureticulum",
+                          "rtreticulum",
                           "heltec_v3");
     RNS::Transport::register_destination(dest);
 
@@ -343,7 +343,7 @@ extern "C" void app_main() {
             RNS::Destination peer_dest(peer_id,
                                        RNS::Type::Destination::OUT,
                                        RNS::Type::Destination::SINGLE,
-                                       "ureticulum",
+                                       "rtreticulum",
                                        "heltec_v3");
             g_out_link = RNS::Link::request(peer_dest);
         });
@@ -357,7 +357,7 @@ extern "C" void app_main() {
     /* Start a nomadnet-compatible node so users can browse pages hosted
      * directly on this ESP32. The node name is what appears in the
      * nomadnet browser's directory. */
-    HeltecV3::NomadnetNode::start(identity, "uReticulum Heltec V3");
+    HeltecV3::NomadnetNode::start(identity, "RTReticulum Heltec V3");
     vTaskDelay(1);  /* yield to feed watchdog after NomadNet announce */
 
     /* Display stays on for DISPLAY_ON_MS after boot so the user can read

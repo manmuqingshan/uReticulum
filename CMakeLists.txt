@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
-project(uReticulum LANGUAGES C CXX)
+project(RTReticulum LANGUAGES C CXX)
 
-set(URETICULUM_PORT "posix" CACHE STRING "HAL backend: posix | freertos")
-set_property(CACHE URETICULUM_PORT PROPERTY STRINGS posix freertos)
+set(RTRETICULUM_PORT "posix" CACHE STRING "HAL backend: posix | freertos")
+set_property(CACHE RTRETICULUM_PORT PROPERTY STRINGS posix freertos)
 
-option(URETICULUM_BUILD_EXAMPLES "Build smoke example(s)" ON)
+option(RTRETICULUM_BUILD_EXAMPLES "Build smoke example(s)" ON)
 
 set(CMAKE_C_STANDARD   11)
 set(CMAKE_CXX_STANDARD 17)
@@ -22,7 +22,7 @@ endif()
 find_library(MONOCYPHER_LIB NAMES monocypher REQUIRED)
 find_path(MONOCYPHER_INCLUDE_DIR monocypher.h REQUIRED)
 
-add_library(ureticulum STATIC
+add_library(rtreticulum STATIC
     src/log.cpp
     src/os.cpp
     src/crc.cpp
@@ -51,60 +51,60 @@ add_library(ureticulum STATIC
     third_party/tlsf/tlsf.c
 )
 
-target_include_directories(ureticulum
+target_include_directories(rtreticulum
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tlsf
 )
 
 if(MbedTLS_FOUND)
-    target_link_libraries(ureticulum PUBLIC MbedTLS::mbedcrypto)
+    target_link_libraries(rtreticulum PUBLIC MbedTLS::mbedcrypto)
 else()
-    target_include_directories(ureticulum PUBLIC ${MBEDTLS_INCLUDE_DIR})
-    target_link_libraries(ureticulum PUBLIC ${MBEDTLS_CRYPTO_LIB})
+    target_include_directories(rtreticulum PUBLIC ${MBEDTLS_INCLUDE_DIR})
+    target_link_libraries(rtreticulum PUBLIC ${MBEDTLS_CRYPTO_LIB})
 endif()
 
-target_include_directories(ureticulum PUBLIC ${MONOCYPHER_INCLUDE_DIR})
-target_link_libraries(ureticulum PUBLIC ${MONOCYPHER_LIB})
+target_include_directories(rtreticulum PUBLIC ${MONOCYPHER_INCLUDE_DIR})
+target_link_libraries(rtreticulum PUBLIC ${MONOCYPHER_LIB})
 
-target_compile_options(ureticulum PRIVATE
+target_compile_options(rtreticulum PRIVATE
     -Wall -Wextra -Wno-unused-parameter
 )
 
-if(URETICULUM_PORT STREQUAL "posix")
-    add_library(ureticulum_hal STATIC port/posix/hal_posix.c)
-    target_include_directories(ureticulum_hal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+if(RTRETICULUM_PORT STREQUAL "posix")
+    add_library(rtreticulum_hal STATIC port/posix/hal_posix.c)
+    target_include_directories(rtreticulum_hal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
     find_package(Threads REQUIRED)
-    target_link_libraries(ureticulum_hal PUBLIC Threads::Threads)
-    target_link_libraries(ureticulum PUBLIC ureticulum_hal)
+    target_link_libraries(rtreticulum_hal PUBLIC Threads::Threads)
+    target_link_libraries(rtreticulum PUBLIC rtreticulum_hal)
 
-elseif(URETICULUM_PORT STREQUAL "freertos")
+elseif(RTRETICULUM_PORT STREQUAL "freertos")
     if(NOT TARGET freertos_kernel)
         message(WARNING
-            "URETICULUM_PORT=freertos but target 'freertos_kernel' is not defined. "
+            "RTRETICULUM_PORT=freertos but target 'freertos_kernel' is not defined. "
             "Link your firmware against a FreeRTOS kernel target providing "
             "FreeRTOS.h, task.h, semphr.h.")
     endif()
-    add_library(ureticulum_hal STATIC port/freertos/hal_freertos.c)
-    target_include_directories(ureticulum_hal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    add_library(rtreticulum_hal STATIC port/freertos/hal_freertos.c)
+    target_include_directories(rtreticulum_hal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
     if(TARGET freertos_kernel)
-        target_link_libraries(ureticulum_hal PUBLIC freertos_kernel)
+        target_link_libraries(rtreticulum_hal PUBLIC freertos_kernel)
     endif()
-    target_link_libraries(ureticulum PUBLIC ureticulum_hal)
+    target_link_libraries(rtreticulum PUBLIC rtreticulum_hal)
 
 else()
-    message(FATAL_ERROR "Unknown URETICULUM_PORT='${URETICULUM_PORT}' (expected posix|freertos)")
+    message(FATAL_ERROR "Unknown RTRETICULUM_PORT='${RTRETICULUM_PORT}' (expected posix|freertos)")
 endif()
 
-if(URETICULUM_BUILD_EXAMPLES AND URETICULUM_PORT STREQUAL "posix")
-    add_executable(ureticulum_smoke examples/smoke/main.cpp)
-    target_link_libraries(ureticulum_smoke PRIVATE ureticulum)
+if(RTRETICULUM_BUILD_EXAMPLES AND RTRETICULUM_PORT STREQUAL "posix")
+    add_executable(rtreticulum_smoke examples/smoke/main.cpp)
+    target_link_libraries(rtreticulum_smoke PRIVATE rtreticulum)
 endif()
 
-option(URETICULUM_BUILD_TESTS "Build host unit tests with doctest" ON)
+option(RTRETICULUM_BUILD_TESTS "Build host unit tests with doctest" ON)
 
-if(URETICULUM_BUILD_TESTS AND URETICULUM_PORT STREQUAL "posix")
-    add_executable(ureticulum_tests
+if(RTRETICULUM_BUILD_TESTS AND RTRETICULUM_PORT STREQUAL "posix")
+    add_executable(rtreticulum_tests
         test/test_main.cpp
         test/test_crc.cpp
         test/test_bytes.cpp
@@ -120,10 +120,10 @@ if(URETICULUM_BUILD_TESTS AND URETICULUM_PORT STREQUAL "posix")
         test/test_transport_concurrency.cpp
         test/test_resource.cpp
     )
-    target_include_directories(ureticulum_tests PRIVATE
+    target_include_directories(rtreticulum_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/doctest
     )
-    target_link_libraries(ureticulum_tests PRIVATE ureticulum)
+    target_link_libraries(rtreticulum_tests PRIVATE rtreticulum)
     enable_testing()
-    add_test(NAME ureticulum_tests COMMAND ureticulum_tests)
+    add_test(NAME rtreticulum_tests COMMAND rtreticulum_tests)
 endif()

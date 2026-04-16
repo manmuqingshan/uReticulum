@@ -1,6 +1,6 @@
 // Note: this file was generated with the help of offline AI.
 #include "doctest.h"
-#include "ureticulum/crc.h"
+#include "rtreticulum/crc.h"
 
 using RNS::Utilities::Crc;
 

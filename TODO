@@ -24,8 +24,6 @@ Firmware
   - rnodeconf ROM/EEPROM read support
   - RAK3172 / STM32WLE5 port (Cortex-M4F HAL, different toolchain)
   - Light sleep with proper OLED decoupling for field deployment
-  - WiFi TCPInterface (ESP32-S3 has WiFi, bridge to rnsd over network)
-
 New capabilities
   - LXMF propagation node (standalone store-and-forward on MCU)
   - LXMF delivery endpoint (receive messages on MCU without host)

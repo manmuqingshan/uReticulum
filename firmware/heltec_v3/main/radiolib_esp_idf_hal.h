@@ -4,7 +4,7 @@
 
 /* RadioLibHal subclass that maps RadioLib's hardware abstraction onto the
  * ESP-IDF SPI/GPIO/timing primitives. Lives in the firmware project (not
- * the uReticulum core) because the SPI/GPIO surface is firmware-specific
+ * the RTReticulum core) because the SPI/GPIO surface is firmware-specific
  * and the Reticulum core doesn't need to know about it. */
 class EspIdfHal : public RadioLibHal {
 public:

@@ -5,9 +5,9 @@
 #include <chrono>
 #include <thread>
 
-#include "ureticulum/interface.h"
-#include "ureticulum/reticulum.h"
-#include "ureticulum/transport.h"
+#include "rtreticulum/interface.h"
+#include "rtreticulum/reticulum.h"
+#include "rtreticulum/transport.h"
 
 using namespace RNS;
 

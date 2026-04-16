@@ -1,11 +1,11 @@
-#include "ureticulum/cryptography/ed25519.h"
+#include "rtreticulum/cryptography/ed25519.h"
 
 #include <stdexcept>
 #include <string.h>
 
 #include <monocypher-ed25519.h>
 
-#include "ureticulum/cryptography/random.h"
+#include "rtreticulum/cryptography/random.h"
 
 namespace RNS { namespace Cryptography {
 

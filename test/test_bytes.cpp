@@ -1,6 +1,6 @@
 // Note: this file was generated with the help of offline AI.
 #include "doctest.h"
-#include "ureticulum/bytes.h"
+#include "rtreticulum/bytes.h"
 
 using RNS::Bytes;
 

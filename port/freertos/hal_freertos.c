@@ -1,4 +1,4 @@
-#include "ureticulum/hal.h"
+#include "rtreticulum/hal.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -9,21 +9,21 @@
 
 /* Assumes FreeRTOS 10+ with configUSE_MUTEXES and
  * configSUPPORT_DYNAMIC_ALLOCATION enabled. Firmware overrides the weak
- * ur_hal_unix_micros_impl / ur_hal_log_write_impl / ur_hal_watchdog_feed
+ * rt_hal_unix_micros_impl / rt_hal_log_write_impl / rt_hal_watchdog_feed
  * symbols to wire up RTC, UART/USB/RTT log sink, and the board watchdog. */
 
-uint64_t ur_hal_millis(void) {
+uint64_t rt_hal_millis(void) {
     return (uint64_t)xTaskGetTickCount() * (1000U / configTICK_RATE_HZ);
 }
 
-__attribute__((weak)) uint64_t ur_hal_unix_micros_impl(void) { return 0; }
-uint64_t ur_hal_unix_micros(void) { return ur_hal_unix_micros_impl(); }
+__attribute__((weak)) uint64_t rt_hal_unix_micros_impl(void) { return 0; }
+uint64_t rt_hal_unix_micros(void) { return rt_hal_unix_micros_impl(); }
 
-void ur_hal_delay_ms(uint32_t ms) { vTaskDelay(pdMS_TO_TICKS(ms)); }
+void rt_hal_delay_ms(uint32_t ms) { vTaskDelay(pdMS_TO_TICKS(ms)); }
 
 struct ur_mutex { SemaphoreHandle_t h; };
 
-ur_mutex_t* ur_hal_mutex_create(void) {
+ur_mutex_t* rt_hal_mutex_create(void) {
     SemaphoreHandle_t h = xSemaphoreCreateMutex();
     if (!h) return NULL;
     ur_mutex_t* m = (ur_mutex_t*)pvPortMalloc(sizeof(*m));
@@ -32,19 +32,19 @@ ur_mutex_t* ur_hal_mutex_create(void) {
     return m;
 }
 
-void ur_hal_mutex_destroy(ur_mutex_t* m) {
+void rt_hal_mutex_destroy(ur_mutex_t* m) {
     if (!m) return;
     vSemaphoreDelete(m->h);
     vPortFree(m);
 }
 
-void ur_hal_mutex_lock(ur_mutex_t* m)   { xSemaphoreTake(m->h, portMAX_DELAY); }
-void ur_hal_mutex_unlock(ur_mutex_t* m) { xSemaphoreGive(m->h); }
+void rt_hal_mutex_lock(ur_mutex_t* m)   { xSemaphoreTake(m->h, portMAX_DELAY); }
+void rt_hal_mutex_unlock(ur_mutex_t* m) { xSemaphoreGive(m->h); }
 
 /* FreeRTOS recursive mutex requires configUSE_RECURSIVE_MUTEXES = 1. */
 struct ur_recursive_mutex { SemaphoreHandle_t h; };
 
-ur_recursive_mutex_t* ur_hal_recursive_mutex_create(void) {
+ur_recursive_mutex_t* rt_hal_recursive_mutex_create(void) {
     SemaphoreHandle_t h = xSemaphoreCreateRecursiveMutex();
     if (!h) return NULL;
     ur_recursive_mutex_t* m = (ur_recursive_mutex_t*)pvPortMalloc(sizeof(*m));
@@ -53,18 +53,18 @@ ur_recursive_mutex_t* ur_hal_recursive_mutex_create(void) {
     return m;
 }
 
-void ur_hal_recursive_mutex_destroy(ur_recursive_mutex_t* m) {
+void rt_hal_recursive_mutex_destroy(ur_recursive_mutex_t* m) {
     if (!m) return;
     vSemaphoreDelete(m->h);
     vPortFree(m);
 }
 
-void ur_hal_recursive_mutex_lock(ur_recursive_mutex_t* m)   { xSemaphoreTakeRecursive(m->h, portMAX_DELAY); }
-void ur_hal_recursive_mutex_unlock(ur_recursive_mutex_t* m) { xSemaphoreGiveRecursive(m->h); }
+void rt_hal_recursive_mutex_lock(ur_recursive_mutex_t* m)   { xSemaphoreTakeRecursive(m->h, portMAX_DELAY); }
+void rt_hal_recursive_mutex_unlock(ur_recursive_mutex_t* m) { xSemaphoreGiveRecursive(m->h); }
 
 struct ur_task { TaskHandle_t h; };
 
-ur_task_t* ur_hal_task_spawn(const char* name,
+ur_task_t* rt_hal_task_spawn(const char* name,
                              ur_task_fn  fn,
                              void*       arg,
                              size_t      stack_words,
@@ -72,7 +72,7 @@ ur_task_t* ur_hal_task_spawn(const char* name,
     ur_task_t* t = (ur_task_t*)pvPortMalloc(sizeof(*t));
     if (!t) return NULL;
     BaseType_t ok = xTaskCreate((TaskFunction_t)fn,
-                                name ? name : "ureticulum",
+                                name ? name : "rtreticulum",
                                 (uint16_t)stack_words,
                                 arg,
                                 (UBaseType_t)priority,
@@ -81,9 +81,9 @@ ur_task_t* ur_hal_task_spawn(const char* name,
     return t;
 }
 
-__attribute__((weak)) void ur_hal_watchdog_feed(void) {}
+__attribute__((weak)) void rt_hal_watchdog_feed(void) {}
 
-__attribute__((weak)) int ur_hal_random_bytes(uint8_t* buf, size_t len) {
+__attribute__((weak)) int rt_hal_random_bytes(uint8_t* buf, size_t len) {
     /* Firmware MUST override this with a real TRNG. The default returns -1
      * so any caller that forgets to wire it up fails fast instead of using
      * predictable bytes. */
@@ -91,10 +91,10 @@ __attribute__((weak)) int ur_hal_random_bytes(uint8_t* buf, size_t len) {
     return -1;
 }
 
-__attribute__((weak)) void ur_hal_log_write_impl(const char* line, size_t len) {
+__attribute__((weak)) void rt_hal_log_write_impl(const char* line, size_t len) {
     fwrite(line, 1, len, stdout);
 }
 
-void ur_hal_log_write(const char* line, size_t len) {
-    ur_hal_log_write_impl(line, len);
+void rt_hal_log_write(const char* line, size_t len) {
+    rt_hal_log_write_impl(line, len);
 }

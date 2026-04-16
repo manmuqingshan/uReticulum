@@ -14,10 +14,10 @@
 
 #include "heltec_v3_pins.h"
 
-#include "ureticulum/destination.h"
-#include "ureticulum/identity.h"
-#include "ureticulum/link.h"
-#include "ureticulum/transport.h"
+#include "rtreticulum/destination.h"
+#include "rtreticulum/identity.h"
+#include "rtreticulum/link.h"
+#include "rtreticulum/transport.h"
 
 static const char* TAG = "nn_node";
 
@@ -85,7 +85,7 @@ namespace {
         unsigned bat_mv = read_battery_mv();
 
         int n = snprintf(page, sizeof(page),
-            ">uReticulum\n"
+            ">RTReticulum\n"
             "\n"
             "Uptime ........ %s\n\n"
             "Battery ....... %u.%02uV\n\n"
@@ -147,7 +147,7 @@ namespace {
 
         n += snprintf(page + n, sizeof(page) - n,
             "-\n"
-            "\nServed live by uReticulum on ESP32-S3\n");
+            "\nServed live by RTReticulum on ESP32-S3\n");
 
         if (n < 0 || (size_t)n >= sizeof(page)) n = sizeof(page) - 1;
         return RNS::Bytes(reinterpret_cast<const uint8_t*>(page), n);

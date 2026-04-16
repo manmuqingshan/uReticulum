@@ -1,11 +1,11 @@
-#include "ureticulum/identity.h"
+#include "rtreticulum/identity.h"
 
 #include <stdexcept>
 
-#include "ureticulum/cryptography/hkdf.h"
-#include "ureticulum/cryptography/token.h"
-#include "ureticulum/filesystem.h"
-#include "ureticulum/os.h"
+#include "rtreticulum/cryptography/hkdf.h"
+#include "rtreticulum/cryptography/token.h"
+#include "rtreticulum/filesystem.h"
+#include "rtreticulum/os.h"
 
 namespace RNS {
 

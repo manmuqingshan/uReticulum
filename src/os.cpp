@@ -1,4 +1,4 @@
-#include "ureticulum/os.h"
+#include "rtreticulum/os.h"
 
 #include <cmath>
 
@@ -7,19 +7,19 @@ namespace RNS { namespace Utilities {
 OS::LoopCallback OS::_on_loop = nullptr;
 
 uint64_t OS::ltime() {
-    return ur_hal_millis();
+    return rt_hal_millis();
 }
 
 double OS::time() {
-    uint64_t us = ur_hal_unix_micros();
+    uint64_t us = rt_hal_unix_micros();
     if (us != 0) return static_cast<double>(us) / 1000000.0;
     /* No RTC — fall back to uptime seconds. */
-    return static_cast<double>(ur_hal_millis()) / 1000.0;
+    return static_cast<double>(rt_hal_millis()) / 1000.0;
 }
 
 void OS::sleep(float seconds) {
     if (seconds <= 0.0f) return;
-    ur_hal_delay_ms(static_cast<uint32_t>(seconds * 1000.0f));
+    rt_hal_delay_ms(static_cast<uint32_t>(seconds * 1000.0f));
 }
 
 double OS::round(double value, uint8_t precision) {
@@ -28,7 +28,7 @@ double OS::round(double value, uint8_t precision) {
 }
 
 void OS::reset_watchdog() {
-    ur_hal_watchdog_feed();
+    rt_hal_watchdog_feed();
 }
 
 void OS::set_loop_callback(LoopCallback on_loop) {

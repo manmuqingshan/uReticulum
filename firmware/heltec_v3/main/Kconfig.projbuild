@@ -1,4 +1,4 @@
-menu "uReticulum Heltec V3"
+menu "RTReticulum Heltec V3"
 
     choice HELTEC_V3_MODE
         prompt "Firmware operating mode"
@@ -11,7 +11,7 @@ menu "uReticulum Heltec V3"
         config HELTEC_V3_MODE_TRANSPORT
             bool "Transport node (autonomous)"
             help
-                Boots into uReticulum with its own Identity, announces a
+                Boots into RTReticulum with its own Identity, announces a
                 local destination, and opens Links to peers over LoRa.
 
         config HELTEC_V3_MODE_RNODE
@@ -19,7 +19,7 @@ menu "uReticulum Heltec V3"
             help
                 Exposes the SX1262 to a USB host via the RNode KISS
                 serial protocol so Python RNS (nomadnet, rnsd, etc.)
-                can drive it as an rnode interface. The uReticulum stack
+                can drive it as an rnode interface. The RTReticulum stack
                 is not started in this mode; the board is a dumb radio.
 
         config HELTEC_V3_MODE_RNODE_BLE
@@ -35,7 +35,7 @@ menu "uReticulum Heltec V3"
 
 endmenu
 
-menu "uReticulum LoRa"
+menu "RTReticulum LoRa"
 
     config LORA_FREQ_MHZ_X10
         int "Frequency (MHz x10, e.g. 9150 = 915.0 MHz)"
@@ -87,7 +87,7 @@ menu "uReticulum LoRa"
 
 endmenu
 
-menu "uReticulum WiFi + OTA"
+menu "RTReticulum WiFi + OTA"
 
     config WIFI_DEFAULT_SSID
         string "Default WiFi SSID"
@@ -121,6 +121,6 @@ menu "uReticulum WiFi + OTA"
         default ""
         help
             HTTP URL to pull firmware from on OTA update. Example:
-            http://192.168.1.100:8080/ureticulum.bin
+            http://192.168.1.100:8080/rtreticulum.bin
 
 endmenu

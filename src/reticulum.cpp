@@ -1,7 +1,7 @@
-#include "ureticulum/reticulum.h"
+#include "rtreticulum/reticulum.h"
 
-#include "ureticulum/hal.h"
-#include "ureticulum/transport.h"
+#include "rtreticulum/hal.h"
+#include "rtreticulum/transport.h"
 
 namespace RNS {
 
@@ -22,7 +22,7 @@ void Reticulum::run_once() {
 void Reticulum::task_entry(void* /*arg*/) {
     while (!_stop_requested.load()) {
         run_once();
-        ur_hal_delay_ms(_tick_ms);
+        rt_hal_delay_ms(_tick_ms);
     }
     _running.store(false);
 }
@@ -31,7 +31,7 @@ bool Reticulum::start(uint32_t tick_ms, size_t stack_words, int priority) {
     if (_running.exchange(true)) return false;  /* already running */
     _stop_requested.store(false);
     _tick_ms = tick_ms;
-    auto* task = ur_hal_task_spawn("ureticulum", task_entry, nullptr, stack_words, priority);
+    auto* task = rt_hal_task_spawn("rtreticulum", task_entry, nullptr, stack_words, priority);
     if (!task) {
         _running.store(false);
         return false;

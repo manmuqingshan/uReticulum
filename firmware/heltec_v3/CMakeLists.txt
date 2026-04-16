@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Heltec WiFi LoRa 32 V3 firmware project for uReticulum.
+# Heltec WiFi LoRa 32 V3 firmware project for RTReticulum.
 # Build with ESP-IDF v5.x:
 #   nix develop ../..#
 #   . $IDF_PATH/export.sh
@@ -12,4 +12,4 @@ set(EXTRA_COMPONENT_DIRS
 )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(ureticulum_heltec_v3)
+project(rtreticulum_heltec_v3)

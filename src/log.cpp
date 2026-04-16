@@ -1,10 +1,10 @@
-#include "ureticulum/log.h"
+#include "rtreticulum/log.h"
 
 #include <stdio.h>
 #include <string.h>
 
-#include "ureticulum/hal.h"
-#include "ureticulum/os.h"
+#include "rtreticulum/hal.h"
+#include "rtreticulum/os.h"
 
 namespace {
     RNS::LogLevel    g_level   = RNS::LOG_TRACE;
@@ -60,7 +60,7 @@ void RNS::doLog(LogLevel level, const char* msg) {
                      getTimeString(), getLevelName(level), msg);
     if (n < 0) return;
     if ((size_t)n >= sizeof(line)) n = sizeof(line) - 1;
-    ur_hal_log_write(line, (size_t)n);
+    rt_hal_log_write(line, (size_t)n);
 }
 
 void RNS::doHeadLog(LogLevel level, const char* msg) {
@@ -70,6 +70,6 @@ void RNS::doHeadLog(LogLevel level, const char* msg) {
         g_on_log(msg, level);
         return;
     }
-    ur_hal_log_write("\n", 1);
+    rt_hal_log_write("\n", 1);
     doLog(level, msg);
 }

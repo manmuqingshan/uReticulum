@@ -6,16 +6,16 @@
 #include <string>
 #include <unistd.h>
 
-#include "ureticulum/filesystem.h"
-#include "ureticulum/filesystems/posix.h"
-#include "ureticulum/identity.h"
+#include "rtreticulum/filesystem.h"
+#include "rtreticulum/filesystems/posix.h"
+#include "rtreticulum/identity.h"
 
 using namespace RNS;
 
 namespace {
     std::string tmp_path(const char* tag) {
         char buf[256];
-        snprintf(buf, sizeof(buf), "/tmp/ureticulum_test_%s_%d", tag, (int)getpid());
+        snprintf(buf, sizeof(buf), "/tmp/rtreticulum_test_%s_%d", tag, (int)getpid());
         return std::string(buf);
     }
 }

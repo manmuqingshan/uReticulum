@@ -1,12 +1,12 @@
-#include "ureticulum/log.h"
-#include "ureticulum/os.h"
+#include "rtreticulum/log.h"
+#include "rtreticulum/os.h"
 
 int main() {
     using namespace RNS;
 
     loglevel(LOG_TRACE);
 
-    NOTICE("uReticulum smoke test starting");
+    NOTICE("RTReticulum smoke test starting");
     INFOF("boot millis: %llu", (unsigned long long)Utilities::OS::ltime());
     INFOF("unix seconds: %.3f", Utilities::OS::time());
 
@@ -17,6 +17,6 @@ int main() {
         Utilities::OS::sleep(0.1f);
     }
 
-    NOTICE("uReticulum smoke test done");
+    NOTICE("RTReticulum smoke test done");
     return 0;
 }

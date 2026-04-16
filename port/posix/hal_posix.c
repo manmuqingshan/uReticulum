@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "ureticulum/hal.h"
+#include "rtreticulum/hal.h"
 
 #include <errno.h>
 #include <pthread.h>
@@ -20,17 +20,17 @@ static uint64_t s_boot_ms(void) {
     return now - boot;
 }
 
-uint64_t ur_hal_millis(void) {
+uint64_t rt_hal_millis(void) {
     return s_boot_ms();
 }
 
-uint64_t ur_hal_unix_micros(void) {
+uint64_t rt_hal_unix_micros(void) {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return (uint64_t)tv.tv_sec * 1000000ULL + (uint64_t)tv.tv_usec;
 }
 
-void ur_hal_delay_ms(uint32_t ms) {
+void rt_hal_delay_ms(uint32_t ms) {
     struct timespec ts;
     ts.tv_sec  = ms / 1000;
     ts.tv_nsec = (long)(ms % 1000) * 1000000L;
@@ -39,25 +39,25 @@ void ur_hal_delay_ms(uint32_t ms) {
 
 struct ur_mutex { pthread_mutex_t m; };
 
-ur_mutex_t* ur_hal_mutex_create(void) {
+ur_mutex_t* rt_hal_mutex_create(void) {
     ur_mutex_t* m = (ur_mutex_t*)malloc(sizeof(*m));
     if (!m) return NULL;
     if (pthread_mutex_init(&m->m, NULL) != 0) { free(m); return NULL; }
     return m;
 }
 
-void ur_hal_mutex_destroy(ur_mutex_t* m) {
+void rt_hal_mutex_destroy(ur_mutex_t* m) {
     if (!m) return;
     pthread_mutex_destroy(&m->m);
     free(m);
 }
 
-void ur_hal_mutex_lock(ur_mutex_t* m)   { pthread_mutex_lock(&m->m); }
-void ur_hal_mutex_unlock(ur_mutex_t* m) { pthread_mutex_unlock(&m->m); }
+void rt_hal_mutex_lock(ur_mutex_t* m)   { pthread_mutex_lock(&m->m); }
+void rt_hal_mutex_unlock(ur_mutex_t* m) { pthread_mutex_unlock(&m->m); }
 
 struct ur_recursive_mutex { pthread_mutex_t m; };
 
-ur_recursive_mutex_t* ur_hal_recursive_mutex_create(void) {
+ur_recursive_mutex_t* rt_hal_recursive_mutex_create(void) {
     ur_recursive_mutex_t* m = (ur_recursive_mutex_t*)malloc(sizeof(*m));
     if (!m) return NULL;
     pthread_mutexattr_t attr;
@@ -69,14 +69,14 @@ ur_recursive_mutex_t* ur_hal_recursive_mutex_create(void) {
     return m;
 }
 
-void ur_hal_recursive_mutex_destroy(ur_recursive_mutex_t* m) {
+void rt_hal_recursive_mutex_destroy(ur_recursive_mutex_t* m) {
     if (!m) return;
     pthread_mutex_destroy(&m->m);
     free(m);
 }
 
-void ur_hal_recursive_mutex_lock(ur_recursive_mutex_t* m)   { pthread_mutex_lock(&m->m); }
-void ur_hal_recursive_mutex_unlock(ur_recursive_mutex_t* m) { pthread_mutex_unlock(&m->m); }
+void rt_hal_recursive_mutex_lock(ur_recursive_mutex_t* m)   { pthread_mutex_lock(&m->m); }
+void rt_hal_recursive_mutex_unlock(ur_recursive_mutex_t* m) { pthread_mutex_unlock(&m->m); }
 
 struct ur_task { pthread_t tid; ur_task_fn fn; void* arg; };
 
@@ -86,7 +86,7 @@ static void* s_trampoline(void* p) {
     return NULL;
 }
 
-ur_task_t* ur_hal_task_spawn(const char* name,
+ur_task_t* rt_hal_task_spawn(const char* name,
                              ur_task_fn  fn,
                              void*       arg,
                              size_t      stack_words,
@@ -100,9 +100,9 @@ ur_task_t* ur_hal_task_spawn(const char* name,
     return t;
 }
 
-void ur_hal_watchdog_feed(void) { /* no watchdog on POSIX */ }
+void rt_hal_watchdog_feed(void) { /* no watchdog on POSIX */ }
 
-int ur_hal_random_bytes(uint8_t* buf, size_t len) {
+int rt_hal_random_bytes(uint8_t* buf, size_t len) {
     if (buf == NULL || len == 0) return 0;
     FILE* f = fopen("/dev/urandom", "rb");
     if (f == NULL) return -1;
@@ -113,7 +113,7 @@ int ur_hal_random_bytes(uint8_t* buf, size_t len) {
 
 static pthread_mutex_t s_log_mu = PTHREAD_MUTEX_INITIALIZER;
 
-void ur_hal_log_write(const char* line, size_t len) {
+void rt_hal_log_write(const char* line, size_t len) {
     pthread_mutex_lock(&s_log_mu);
     fwrite(line, 1, len, stdout);
     fflush(stdout);

@@ -1,8 +1,8 @@
-#include "ureticulum/packet.h"
+#include "rtreticulum/packet.h"
 
 #include <stdexcept>
 
-#include "ureticulum/identity.h"
+#include "rtreticulum/identity.h"
 
 namespace RNS {
 

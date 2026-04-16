@@ -1,6 +1,6 @@
-#include "ureticulum/interface.h"
+#include "rtreticulum/interface.h"
 
-#include "ureticulum/transport.h"
+#include "rtreticulum/transport.h"
 
 namespace RNS {
 

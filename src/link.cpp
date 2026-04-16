@@ -1,12 +1,12 @@
-#include "ureticulum/link.h"
+#include "rtreticulum/link.h"
 
-#include "ureticulum/cryptography/hkdf.h"
-#include "ureticulum/log.h"
-#include "ureticulum/msgpack.h"
-#include "ureticulum/packet.h"
-#include "ureticulum/transport.h"
+#include "rtreticulum/cryptography/hkdf.h"
+#include "rtreticulum/log.h"
+#include "rtreticulum/msgpack.h"
+#include "rtreticulum/packet.h"
+#include "rtreticulum/transport.h"
 
-/* Use the portable log macros from ureticulum/log.h. DEBUGF is compiled
+/* Use the portable log macros from rtreticulum/log.h. DEBUGF is compiled
  * out in release builds; switch to INFOF for always-on diagnostics. */
 
 namespace RNS {

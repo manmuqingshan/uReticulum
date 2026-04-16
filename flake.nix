@@ -1,5 +1,5 @@
 {
-  description = "uReticulum";
+  description = "RTReticulum - Realtime Reticulum, a native Reticulum stack for microcontrollers";
 
   inputs = {
     nixpkgs.url     = "github:NixOS/nixpkgs/nixos-unstable";
@@ -20,7 +20,7 @@
         esp-pkgs = nixpkgs-esp-dev.packages.${system};
       in {
         devShells.default = pkgs.mkShell {
-          name = "ureticulum-dev";
+          name = "rtreticulum-dev";
 
           packages = (with pkgs; [
             cmake
